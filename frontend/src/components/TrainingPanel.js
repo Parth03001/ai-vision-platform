@@ -17,7 +17,7 @@ const makeJob = (taskId) => ({
     id: Date.now(),
     taskId,
     status: 'PENDING',
-    logs: [`📋  Task ID: ${taskId}`, '⏳  Waiting for worker…'],
+    logs: [`[ID] Task ID: ${taskId}`, '[...] Waiting for worker...'],
     epochMeta: null,   // { epoch, total_epochs, eta_seconds, history: [...] }
     result: null,
     error: null,

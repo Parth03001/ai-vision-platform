@@ -5,6 +5,7 @@ from typing import List, Optional
 from datetime import datetime
 from app.tasks.training import train_seed_model, train_main_model
 from app.tasks.auto_annotate import auto_annotate_remaining
+from app.tasks.ai_prompt import detect_with_prompt, bulk_detect_with_prompt
 from app.tasks.celery_app import celery_app
 from app.database import get_db
 from app.models.image import Image
@@ -103,6 +104,36 @@ async def start_auto_annotation(project_id: str, body: AutoAnnotateRequest = Non
     conf = body.conf if body else 0.1
     task = auto_annotate_remaining.delay(project_id, ids, conf)
     return {"task_id": task.id, "status": "queued"}
+
+
+# ── AI Prompt ───────────────────────────────────────────────────
+
+class AIPromptRequest(BaseModel):
+    project_id: str
+    image_id: str
+    prompt: str
+    clear_existing: bool = False
+
+class AIBulkPromptRequest(BaseModel):
+    project_id: str
+    prompt: str
+    image_ids: Optional[List[str]] = None
+
+@router.post("/ai-prompt")
+async def trigger_ai_prompt(body: AIPromptRequest):
+    """Detect objects in a single image using a text prompt."""
+    task = detect_with_prompt.delay(
+        body.project_id, body.image_id, body.prompt, body.clear_existing
+    )
+    return {"task_id": task.id}
+
+@router.post("/ai-bulk-prompt")
+async def trigger_ai_bulk_prompt(body: AIBulkPromptRequest):
+    """Detect objects in multiple images using a text prompt."""
+    task = bulk_detect_with_prompt.delay(
+        body.project_id, body.prompt, body.image_ids
+    )
+    return {"task_id": task.id}
 
 
 @router.get("/pending-images/{project_id}")

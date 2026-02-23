@@ -26,12 +26,15 @@ redis>=5.0.0
 # Deep Learning
 torch>=2.1.0
 torchvision>=0.16.0
-transformers>=4.37.0
+transformers==4.57.3
+sentencepiece>=0.2.1
+protobuf
 ultralytics>=8.1.0
 
 # Utilities
 loguru>=0.7.2
 python-dotenv>=1.0.0
 Pillow>=10.2.0
+supervision>=0.18.0
 opencv-python-headless>=4.9.0
 pyyaml>=6.0.1

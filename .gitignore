@@ -145,3 +145,4 @@ backend/data/*
 *.db
 *.pyc
 /datavision_hf_models
+temp_dataset_*

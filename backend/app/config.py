@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     postgres_port: int = 5432
     postgres_db: str = "ai_vision"
     postgres_user: str = "postgres"
-    postgres_password: str = "postgres"
+    postgres_password: str = "password"
 
     # ── SQLAlchemy pool (sync connector) ─────────────────────────────────────
     db_pool_size: int = 10

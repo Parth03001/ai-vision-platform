@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
-import { Stage, Layer, Rect, Text, Image } from 'react-konva';
+import { Stage, Layer, Rect, Text, Image, Group } from 'react-konva';
 import useImage from 'use-image';
 import TrainingPanel from './TrainingPanel';
 import AutoAnnotatePanel from './AutoAnnotatePanel';
@@ -128,7 +128,130 @@ const AnnotationWorkspace = ({ project, onProjectUpdated }) => {
     const [showModelsPanel, setShowModelsPanel] = useState(false);
     // Local copy of classes so edits from LabelsPanel are reflected instantly
     const [localClasses, setLocalClasses] = useState(project.classes || []);
+    const [aiPrompt, setAiPrompt] = useState('');
+    const [clearExisting, setClearExisting] = useState(false);
+    const [isDetecting, setIsDetecting] = useState(false);
     const canvasAreaRef = useRef(null);
+
+    const pollTask = useCallback((taskId, onComplete, onProgress) => {
+        const interval = setInterval(async () => {
+            try {
+                const res = await axios.get(`${API_URL}/pipeline/task-status/${taskId}`);
+                if (res.data.status === 'SUCCESS') {
+                    clearInterval(interval);
+                    onComplete(res.data.result);
+                } else if (res.data.status === 'FAILURE') {
+                    clearInterval(interval);
+                    setError("AI Detection failed: " + (res.data.error || "Unknown error"));
+                    setIsDetecting(false);
+                } else if (onProgress && res.data.meta) {
+                    onProgress(res.data.meta);
+                }
+            } catch (e) {
+                clearInterval(interval);
+                setIsDetecting(false);
+            }
+        }, 2000);
+        return interval;
+    }, []);
+
+    const handleAIDetect = async () => {
+        if (!currentImage || !aiPrompt.trim()) return;
+        setIsDetecting(true);
+        try {
+            const res = await axios.post(`${API_URL}/pipeline/ai-prompt`, {
+                project_id: project.id,
+                image_id: currentImage.id,
+                prompt: aiPrompt.trim(),
+                clear_existing: clearExisting
+            });
+            pollTask(res.data.task_id, (result) => {
+                setIsDetecting(false);
+                if (result.count > 0) {
+                    showStatus(`✓ Found ${result.count} ${aiPrompt}`);
+                    handleImageClick(currentImage); // Refresh annotations
+                } else {
+                    showStatus("No objects found.");
+                }
+            });
+        } catch (e) {
+            setError("Failed to start AI detection.");
+            setIsDetecting(false);
+        }
+    };
+
+    const handleAIApplyAll = async () => {
+        if (!aiPrompt.trim()) return;
+        const count = images.filter(img => img.status === 'pending').length;
+        if (count === 0) {
+            showStatus("No pending images to annotate.");
+            return;
+        }
+        
+        const confirmMsg = `AI Plan:
+- Use prompt: "${aiPrompt.trim()}"
+- Process ${count} pending images
+- Detected boxes will be added to the images
+
+Do you want to proceed?`;
+
+        if (!window.confirm(confirmMsg)) return;
+
+        setIsDetecting(true);
+        try {
+            const res = await axios.post(`${API_URL}/pipeline/ai-bulk-prompt`, {
+                project_id: project.id,
+                prompt: aiPrompt.trim()
+            });
+            pollTask(res.data.task_id, (result) => {
+                setIsDetecting(false);
+                showStatus(`✓ AI Bulk complete: ${result.total_found} objects found across ${result.processed} images.`);
+                // Refresh list
+                axios.get(`${API_URL}/images/project/${project.id}`).then(r => setImages(r.data));
+                if (currentImage) handleImageClick(currentImage);
+            }, (progress) => {
+                if (progress.current) {
+                    setStatusMsg(`AI Processing: ${progress.current} / ${progress.total}...`);
+                }
+            });
+        } catch (e) {
+            setError("Failed to start bulk AI detection.");
+            setIsDetecting(false);
+        }
+    };
+
+    const handleAcceptAnnotation = async (annId) => {
+        try {
+            await axios.patch(`${API_URL}/annotations/${annId}/verify`);
+            setAnnotations(prev => prev.map(a => a.id === annId ? { ...a, source: 'manual' } : a));
+        } catch (e) {
+            setError("Failed to verify annotation.");
+        }
+    };
+
+    const handleRejectAnnotation = async (annId) => {
+        try {
+            await axios.delete(`${API_URL}/annotations/${annId}`);
+            setAnnotations(prev => prev.filter(a => a.id !== annId));
+        } catch (e) {
+            setError("Failed to delete annotation.");
+        }
+    };
+
+    const handleAcceptAll = async () => {
+        const toVerify = annotations.filter(a => a.source !== 'manual');
+        if (toVerify.length === 0) return;
+        
+        try {
+            // Sequential to be safe, or could do Promise.all
+            await Promise.all(toVerify.map(a => axios.patch(`${API_URL}/annotations/${a.id}/verify`)));
+            setAnnotations(prev => prev.map(a => ({ ...a, source: 'manual' })));
+            showStatus(`✓ Accepted ${toVerify.length} annotations`);
+        } catch (e) {
+            setError("Failed to accept all annotations.");
+        }
+    };
+
     const fileInputRef = useRef(null);
 
     useEffect(() => {
@@ -437,6 +560,45 @@ const AnnotationWorkspace = ({ project, onProjectUpdated }) => {
                             </span>
                         </div>
 
+                        {/* ── AI Prompt Bar (Below Toolbar) ── */}
+                        <div className="ai-prompt-bar">
+                            <div className="ai-prompt-bar-left">
+                                <span className="ai-prompt-spark">✦</span>
+                                <input
+                                    type="text"
+                                    className="ai-prompt-bar-input"
+                                    placeholder="Enter object to detect (e.g. 'hard hat')..."
+                                    value={aiPrompt}
+                                    onChange={(e) => setAiPrompt(e.target.value)}
+                                    disabled={isDetecting}
+                                />
+                                <label className="ai-prompt-checkbox">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={clearExisting} 
+                                        onChange={e => setClearExisting(e.target.checked)} 
+                                    />
+                                    <span>Wipe Existing</span>
+                                </label>
+                            </div>
+                            <div className="ai-prompt-bar-right">
+                                <button
+                                    className={`ai-bar-btn ai-bar-btn-primary ${isDetecting ? 'loading' : ''}`}
+                                    onClick={handleAIDetect}
+                                    disabled={isDetecting || !aiPrompt.trim()}
+                                >
+                                    {isDetecting ? 'Detecting...' : 'Detect Image'}
+                                </button>
+                                <button
+                                    className={`ai-bar-btn ai-bar-btn-secondary ${isDetecting ? 'loading' : ''}`}
+                                    onClick={handleAIApplyAll}
+                                    disabled={isDetecting || !aiPrompt.trim()}
+                                >
+                                    Apply to All
+                                </button>
+                            </div>
+                        </div>
+
                         <div className="canvas-center">
                             <Stage
                                 className="canvas-stage"
@@ -490,6 +652,59 @@ const AnnotationWorkspace = ({ project, onProjectUpdated }) => {
                                                     fill="#fff"
                                                     fontStyle="bold"
                                                 />
+
+                                                {/* ── Canvas Controls (Only for AI boxes) ── */}
+                                                {ann.source !== 'manual' && (
+                                                    <Group x={bx + bw - (44 / scale)} y={by + (4 / scale)}>
+                                                        {/* Reject Button */}
+                                                        <Group 
+                                                            onClick={() => handleRejectAnnotation(ann.id)} 
+                                                            onTap={() => handleRejectAnnotation(ann.id)}
+                                                            onMouseEnter={e => {
+                                                                const stage = e.target.getStage();
+                                                                stage.container().style.cursor = 'pointer';
+                                                            }}
+                                                            onMouseLeave={e => {
+                                                                const stage = e.target.getStage();
+                                                                stage.container().style.cursor = 'crosshair';
+                                                            }}
+                                                        >
+                                                            <Rect
+                                                                width={18 / scale} height={18 / scale}
+                                                                fill="#f43f5e" cornerRadius={3 / scale}
+                                                                shadowBlur={2 / scale}
+                                                            />
+                                                            <Text
+                                                                text="✕" fill="#fff" fontSize={12 / scale}
+                                                                x={5 / scale} y={3 / scale} fontStyle="bold"
+                                                            />
+                                                        </Group>
+                                                        {/* Accept Button */}
+                                                        <Group 
+                                                            x={22 / scale} 
+                                                            onClick={() => handleAcceptAnnotation(ann.id)} 
+                                                            onTap={() => handleAcceptAnnotation(ann.id)}
+                                                            onMouseEnter={e => {
+                                                                const stage = e.target.getStage();
+                                                                stage.container().style.cursor = 'pointer';
+                                                            }}
+                                                            onMouseLeave={e => {
+                                                                const stage = e.target.getStage();
+                                                                stage.container().style.cursor = 'crosshair';
+                                                            }}
+                                                        >
+                                                            <Rect
+                                                                width={18 / scale} height={18 / scale}
+                                                                fill="#22c55e" cornerRadius={3 / scale}
+                                                                shadowBlur={2 / scale}
+                                                            />
+                                                            <Text
+                                                                text="✓" fill="#fff" fontSize={12 / scale}
+                                                                x={4 / scale} y={3 / scale} fontStyle="bold"
+                                                            />
+                                                        </Group>
+                                                    </Group>
+                                                )}
                                             </React.Fragment>
                                         );
                                     })}
@@ -521,14 +736,35 @@ const AnnotationWorkspace = ({ project, onProjectUpdated }) => {
 
                         {annotations.length > 0 && (
                             <div className="annotations-list">
-                                <p className="sidebar-label" style={{ marginBottom: 8 }}>Annotations</p>
+                                <div className="annotations-list-header">
+                                    <p className="sidebar-label" style={{ margin: 0 }}>Annotations</p>
+                                    {annotations.some(a => a.source !== 'manual') && (
+                                        <button className="accept-all-btn" onClick={handleAcceptAll}>
+                                            Accept All
+                                        </button>
+                                    )}
+                                </div>
                                 {annotations.map(ann => (
                                     <div key={ann.id} className="annotation-row">
-                                        <span className="annotation-dot"></span>
+                                        <span className="annotation-dot" style={{ backgroundColor: ann.source === 'auto' ? '#a78bfa' : '#f43f5e' }}></span>
                                         <span className="annotation-class">{ann.class_name}</span>
                                         <span className={`annotation-source source-${ann.source}`}>
                                             {ann.source}
                                         </span>
+                                        {ann.source !== 'manual' && (
+                                            <div className="annotation-verify-actions">
+                                                <button 
+                                                    className="ann-btn ann-btn-accept" 
+                                                    title="Accept"
+                                                    onClick={() => handleAcceptAnnotation(ann.id)}
+                                                >✓</button>
+                                                <button 
+                                                    className="ann-btn ann-btn-reject" 
+                                                    title="Reject"
+                                                    onClick={() => handleRejectAnnotation(ann.id)}
+                                                >✕</button>
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>

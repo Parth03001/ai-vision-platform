@@ -18,7 +18,7 @@ const makeJob = (taskId, modelName) => ({
     taskId,
     modelName,
     status: 'PENDING',
-    logs: [`📋  Task ID: ${taskId}`, '⏳  Waiting for worker…'],
+    logs: [`[ID] Task ID: ${taskId}`, '[...] Waiting for worker...'],
     epochMeta: null,
     result: null,
     error: null,
@@ -389,7 +389,7 @@ const MainTrainingPanel = ({ project, onClose }) => {
         } catch {
             setJobs(prev => prev.map(j =>
                 j.id === next.jobId
-                    ? { ...j, status: 'FAILURE', logs: [...j.logs, '❌  Failed to queue job.'] }
+                    ? { ...j, status: 'FAILURE', logs: [...j.logs, '[ERR] Failed to queue job.'] }
                     : j
             ));
         }
@@ -404,7 +404,7 @@ const MainTrainingPanel = ({ project, onClose }) => {
             const placeholder = {
                 id: Date.now(), taskId: null, status: 'QUEUED',
                 modelName: selectedModel,
-                logs: ['📋  Job queued — waiting for a free slot…'],
+                logs: ['[INFO] Job queued - waiting for a free slot...'],
                 epochMeta: null, result: null, error: null, startedAt: new Date(),
             };
             queueRef.current.push({
@@ -434,7 +434,7 @@ const MainTrainingPanel = ({ project, onClose }) => {
             const failJob = {
                 id: Date.now(), taskId: null, status: 'FAILURE',
                 modelName: selectedModel,
-                logs: ['❌  Failed to queue main training job.'],
+                logs: ['[ERR] Failed to queue main training job.'],
                 epochMeta: null, result: null, error: 'Failed to queue', startedAt: new Date(),
             };
             setJobs(prev => [...prev, failJob]);

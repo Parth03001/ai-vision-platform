@@ -33,3 +33,39 @@ async def create_annotation(data: AnnotationCreate, db: AsyncSession = Depends(g
 async def list_image_annotations(image_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Annotation).where(Annotation.image_id == image_id))
     return result.scalars().all()
+
+@router.patch("/{annotation_id}/verify")
+async def verify_annotation(annotation_id: str, db: AsyncSession = Depends(get_db)):
+    """Mark an AI annotation as verified by changing source to 'manual'."""
+    result = await db.execute(select(Annotation).where(Annotation.id == annotation_id))
+    ann = result.scalar_one_or_none()
+    if not ann:
+        raise HTTPException(status_code=404, detail="Annotation not found")
+    
+    ann.source = "manual"
+    await db.commit()
+    return {"status": "verified", "id": annotation_id}
+
+@router.delete("/{annotation_id}")
+async def delete_annotation(annotation_id: str, db: AsyncSession = Depends(get_db)):
+    """Delete an annotation (used for 'Reject')."""
+    result = await db.execute(select(Annotation).where(Annotation.id == annotation_id))
+    ann = result.scalar_one_or_none()
+    if not ann:
+        raise HTTPException(status_code=404, detail="Annotation not found")
+    
+    image_id = ann.image_id
+    await db.delete(ann)
+    
+    # If no annotations left, set image status back to pending
+    count_res = await db.execute(
+        select(Annotation).where(Annotation.image_id == image_id)
+    )
+    if not count_res.scalars().first():
+        img_res = await db.execute(select(Image).where(Image.id == image_id))
+        img = img_res.scalar_one_or_none()
+        if img:
+            img.status = "pending"
+
+    await db.commit()
+    return {"status": "deleted"}

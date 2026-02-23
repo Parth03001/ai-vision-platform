@@ -23,7 +23,7 @@ const makeJob = (taskId, count) => ({
     taskId,
     imageCount: count,
     status: 'PENDING',
-    logs: [`📋  Task ID: ${taskId}`, `🖼  Processing ${count} image${count !== 1 ? 's' : ''}…`],
+    logs: [`[ID] Task ID: ${taskId}`, `[IMG] Processing ${count} image${count !== 1 ? 's' : ''}...`],
     progress: null,  // { current, total, current_image, annotated_count }
     result: null,
     error: null,

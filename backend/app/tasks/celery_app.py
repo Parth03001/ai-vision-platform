@@ -8,6 +8,7 @@ celery_app = Celery(
     include=[
         "app.tasks.training",
         "app.tasks.auto_annotate",
+        "app.tasks.ai_prompt",
     ],
 )
 
