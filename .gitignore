@@ -144,3 +144,4 @@ backend/data/*
 *.pt
 *.db
 *.pyc
+/datavision_hf_models
