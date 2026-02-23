@@ -1,0 +1,165 @@
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import './App.css';
+import LandingPage from './components/LandingPage';
+import LoginPage from './components/LoginPage';
+import ProjectList from './components/ProjectList';
+import AnnotationWorkspace from './components/AnnotationWorkspace';
+
+const API_URL = "http://localhost:8000/api/v1";
+
+// ── Attach saved token to every axios request automatically ──────
+const savedToken = localStorage.getItem('auth_token');
+if (savedToken) {
+    axios.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`;
+}
+
+// ── Auto-logout on 401 from any request ──────────────────────────
+axios.interceptors.response.use(
+    res => res,
+    err => {
+        if (err.response?.status === 401) {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('auth_user');
+            delete axios.defaults.headers.common['Authorization'];
+            // Signal re-render by dispatching a custom event
+            window.dispatchEvent(new Event('auth:logout'));
+        }
+        return Promise.reject(err);
+    }
+);
+
+function App() {
+    // 'landing' | 'login' | 'dashboard'
+    const [view, setView]                 = useState('landing');
+    const [loginDefaultTab, setLoginDefaultTab] = useState('login');
+    const [currentUser, setCurrentUser]   = useState(null);
+    const [currentProject, setCurrentProject] = useState(null);
+    const [authChecking, setAuthChecking] = useState(true);
+
+    // ── On mount: validate saved session ─────────────────────────
+    useEffect(() => {
+        const token = localStorage.getItem('auth_token');
+        if (!token) { setAuthChecking(false); return; }
+
+        axios.get(`${API_URL}/auth/me`)
+            .then(res => {
+                setCurrentUser(res.data);
+                setView('dashboard');
+            })
+            .catch(() => {
+                // Token invalid / expired — clear and show landing
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('auth_user');
+                delete axios.defaults.headers.common['Authorization'];
+            })
+            .finally(() => setAuthChecking(false));
+    }, []);
+
+    // ── Listen for 401 interceptor signal ────────────────────────
+    useEffect(() => {
+        const handler = () => {
+            setCurrentUser(null);
+            setCurrentProject(null);
+            setView('landing');
+        };
+        window.addEventListener('auth:logout', handler);
+        return () => window.removeEventListener('auth:logout', handler);
+    }, []);
+
+    // ── Auth actions ──────────────────────────────────────────────
+    const handleLoginSuccess = (user) => {
+        setCurrentUser(user);
+        setCurrentProject(null);
+        setView('dashboard');
+    };
+
+    const handleLogout = () => {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_user');
+        delete axios.defaults.headers.common['Authorization'];
+        setCurrentUser(null);
+        setCurrentProject(null);
+        setView('landing');
+    };
+
+    // ── Show nothing while checking saved session ─────────────────
+    if (authChecking) {
+        return (
+            <div className="app-boot">
+                <span className="app-boot-icon">◈</span>
+            </div>
+        );
+    }
+
+    // ── Landing ───────────────────────────────────────────────────
+    if (view === 'landing') {
+        return (
+            <LandingPage
+                onLogin={() => { setLoginDefaultTab('login'); setView('login'); }}
+                onGetStarted={() => { setLoginDefaultTab('register'); setView('login'); }}
+            />
+        );
+    }
+
+    // ── Login / Register ──────────────────────────────────────────
+    if (view === 'login') {
+        return (
+            <LoginPage
+                defaultTab={loginDefaultTab}
+                onSuccess={handleLoginSuccess}
+                onBack={() => setView('landing')}
+            />
+        );
+    }
+
+    // ── Dashboard ─────────────────────────────────────────────────
+    return (
+        <div className="app">
+            <header className="app-header">
+                <div className="app-header-inner">
+                    <div className="app-logo">
+                        <span className="app-logo-icon">◈</span>
+                        <span className="app-logo-text">AI Vision Platform</span>
+                    </div>
+
+                    {currentProject && (
+                        <nav className="app-nav">
+                            <button
+                                className="btn-back"
+                                onClick={() => setCurrentProject(null)}
+                            >
+                                ← Dashboard
+                            </button>
+                            <span className="app-nav-project">{currentProject.name}</span>
+                        </nav>
+                    )}
+
+                    {/* User info + logout */}
+                    <div className="app-user">
+                        <span className="app-user-avatar">
+                            {currentUser?.name?.[0]?.toUpperCase() || '?'}
+                        </span>
+                        <span className="app-user-name">{currentUser?.name}</span>
+                        <button className="app-logout-btn" onClick={handleLogout} title="Sign out">
+                            Sign Out
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <main className="app-main">
+                {currentProject ? (
+                    <AnnotationWorkspace
+                        project={currentProject}
+                        onProjectUpdated={(updated) => setCurrentProject(updated)}
+                    />
+                ) : (
+                    <ProjectList onProjectSelect={setCurrentProject} user={currentUser} />
+                )}
+            </main>
+        </div>
+    );
+}
+
+export default App;

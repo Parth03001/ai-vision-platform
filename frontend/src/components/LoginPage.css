@@ -1,0 +1,634 @@
+/* ══════════════════════════════════════════════════════════════
+   LoginPage v2 — Two-column layout
+   Left: CSS-art panel   |   Right: Sign In / Register form
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Page shell ───────────────────────────────────────────────── */
+.lp2-page {
+    display: flex;
+    min-height: 100vh;
+    background: #050817;
+    overflow: hidden;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   LEFT PANEL
+   ════════════════════════════════════════════════════════════════ */
+.lp2-left {
+    position: relative;
+    width: 48%;
+    min-height: 100vh;
+    background: linear-gradient(155deg, #07091f 0%, #0d1230 50%, #060c20 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+/* ── Background decoration ───────────────────────────────────── */
+.lp2-left-bg {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.lp2-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+}
+
+.lp2-orb--1 {
+    width: 480px;
+    height: 480px;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.28) 0%, transparent 70%);
+    top: -120px;
+    left: -100px;
+    animation: lp2-pulse 9s ease-in-out infinite;
+}
+
+.lp2-orb--2 {
+    width: 360px;
+    height: 360px;
+    background: radial-gradient(circle, rgba(6, 182, 212, 0.22) 0%, transparent 70%);
+    bottom: -80px;
+    right: -60px;
+    animation: lp2-pulse 11s ease-in-out infinite reverse;
+}
+
+.lp2-orb--3 {
+    width: 280px;
+    height: 280px;
+    background: radial-gradient(circle, rgba(139, 92, 246, 0.18) 0%, transparent 70%);
+    top: 55%;
+    left: 55%;
+    transform: translate(-50%, -50%);
+    animation: lp2-pulse 7s ease-in-out infinite;
+}
+
+@keyframes lp2-pulse {
+    0%, 100% { transform: scale(1);    opacity: 0.8; }
+    50%       { transform: scale(1.18); opacity: 1;   }
+}
+
+.lp2-orb--3 {
+    animation: lp2-pulse3 7s ease-in-out infinite;
+}
+@keyframes lp2-pulse3 {
+    0%, 100% { transform: translate(-50%, -50%) scale(1);    opacity: 0.8; }
+    50%       { transform: translate(-50%, -50%) scale(1.18); opacity: 1;   }
+}
+
+.lp2-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(99, 102, 241, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(99, 102, 241, 0.06) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%);
+}
+
+/* ── Left content wrapper ─────────────────────────────────────── */
+.lp2-left-content {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    max-width: 420px;
+    padding: 48px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+}
+
+/* ── Brand ────────────────────────────────────────────────────── */
+.lp2-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.lp2-brand-icon {
+    font-size: 24px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+}
+
+.lp2-brand-name {
+    font-size: 17px;
+    font-weight: 700;
+    color: #f1f5f9;
+    letter-spacing: -0.02em;
+}
+
+/* ── Headline ─────────────────────────────────────────────────── */
+.lp2-headline-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.lp2-headline {
+    margin: 0;
+    font-size: 32px;
+    font-weight: 800;
+    color: #f1f5f9;
+    line-height: 1.18;
+    letter-spacing: -0.03em;
+}
+
+.lp2-headline-grad {
+    background: linear-gradient(135deg, #818cf8 0%, #c084fc 60%, #38bdf8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.lp2-headline-sub {
+    margin: 0;
+    font-size: 13.5px;
+    color: #64748b;
+    line-height: 1.6;
+}
+
+/* ── Annotation mockup card ───────────────────────────────────── */
+.lp2-mockup-card {
+    background: rgba(15, 22, 41, 0.75);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow:
+        0 0 0 1px rgba(99, 102, 241, 0.06),
+        0 24px 48px rgba(0, 0, 0, 0.45),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(12px);
+    animation: lp2-card-float 6s ease-in-out infinite;
+}
+
+@keyframes lp2-card-float {
+    0%, 100% { transform: translateY(0px);  }
+    50%       { transform: translateY(-6px); }
+}
+
+/* Window title bar */
+.lp2-mockup-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.lp2-mockup-dots {
+    display: flex;
+    gap: 5px;
+}
+
+.lp2-mockup-dots span {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+}
+
+.lp2-mockup-dots span:nth-child(1) { background: #ef4444; }
+.lp2-mockup-dots span:nth-child(2) { background: #f59e0b; }
+.lp2-mockup-dots span:nth-child(3) { background: #10b981; }
+
+.lp2-mockup-title {
+    font-size: 12px;
+    color: #475569;
+    font-family: 'Courier New', monospace;
+    letter-spacing: 0.01em;
+}
+
+/* Canvas area */
+.lp2-mockup-canvas {
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+/* Fake image */
+.lp2-fake-img {
+    position: relative;
+    height: 160px;
+    border-radius: 8px;
+    overflow: hidden;
+    background-image: url('../assets/street_cam.jpg');
+    background-size: cover;
+    background-position: center;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Add a subtle overlay so bounding boxes pop */
+.lp2-fake-img::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.2);
+    pointer-events: none;
+}
+
+/* Bounding boxes */
+.lp2-bbox {
+    position: absolute;
+    border-radius: 3px;
+    animation: lp2-bbox-appear 0.4s ease-out both;
+}
+
+.lp2-bbox--person {
+    top: 5%;
+    left: 38%;
+    width: 30%;
+    height: 71%;
+    border: 2px solid #6366f1;
+    box-shadow: 0 0 12px rgba(99, 102, 241, 0.4), inset 0 0 8px rgba(99, 102, 241, 0.06);
+    animation-delay: 0.1s;
+}
+
+.lp2-bbox--car {
+    top: 37%;
+    left: 0%;
+    width: 77%;
+    height: 63%;
+    border: 2px solid #f59e0b;
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.35), inset 0 0 8px rgba(245, 158, 11, 0.06);
+    animation-delay: 0.25s;
+}
+
+.lp2-bbox--bike {
+    top: 45%;
+    left: 25%;
+    width: 53%;
+    height: 53%;
+    border: 2px solid #10b981;
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.35), inset 0 0 8px rgba(16, 185, 129, 0.06);
+    animation-delay: 0.4s;
+}
+
+@keyframes lp2-bbox-appear {
+    from { opacity: 0; transform: scale(0.92); }
+    to   { opacity: 1; transform: scale(1);    }
+}
+
+.lp2-bbox-tag {
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #fff;
+    padding: 2px 6px;
+    border-radius: 3px 3px 3px 0;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+/* Mockup footer with class tags */
+.lp2-mockup-footer {
+    display: flex;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    flex-wrap: wrap;
+}
+
+.lp2-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid;
+    border-radius: 20px;
+    padding: 3px 10px 3px 7px;
+    font-weight: 500;
+}
+
+.lp2-tag-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* ── Feature list ─────────────────────────────────────────────── */
+.lp2-features {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.lp2-feature {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.lp2-feature-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+    margin-top: 1px;
+    width: 22px;
+    text-align: center;
+}
+
+.lp2-feature-title {
+    color: #cbd5e1;
+    font-weight: 600;
+}
+
+.lp2-feature-desc {
+    color: #475569;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   RIGHT PANEL — Form
+   ════════════════════════════════════════════════════════════════ */
+.lp2-right {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 32px;
+    position: relative;
+    background: #070a1a;
+    border-left: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/* ── Back button ─────────────────────────────────────────────── */
+.lp2-back {
+    position: absolute;
+    top: 24px;
+    left: 28px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    color: #475569;
+    font-size: 13px;
+    padding: 7px 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    z-index: 5;
+}
+
+.lp2-back:hover {
+    background: rgba(255, 255, 255, 0.07);
+    color: #94a3b8;
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* ── Form wrapper ────────────────────────────────────────────── */
+.lp2-form-wrap {
+    width: 100%;
+    max-width: 380px;
+}
+
+/* ── Tabs ────────────────────────────────────────────────────── */
+.lp2-tabs {
+    display: flex;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+    padding: 3px;
+    margin-bottom: 28px;
+    gap: 2px;
+}
+
+.lp2-tab {
+    flex: 1;
+    background: none;
+    border: none;
+    border-radius: 8px;
+    color: #475569;
+    font-size: 13.5px;
+    font-weight: 500;
+    padding: 9px 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+.lp2-tab:hover:not(.lp2-tab--active) {
+    color: #64748b;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.lp2-tab--active {
+    background: rgba(99, 102, 241, 0.14);
+    color: #a5b4fc;
+    border: 1px solid rgba(99, 102, 241, 0.24);
+    font-weight: 600;
+}
+
+/* ── Form heading ────────────────────────────────────────────── */
+.lp2-form-heading {
+    margin-bottom: 24px;
+}
+
+.lp2-form-heading h1 {
+    margin: 0 0 6px;
+    font-size: 23px;
+    font-weight: 700;
+    color: #f1f5f9;
+    letter-spacing: -0.025em;
+}
+
+.lp2-form-heading p {
+    margin: 0;
+    font-size: 14px;
+    color: #475569;
+    line-height: 1.5;
+}
+
+/* ── Error banner ────────────────────────────────────────────── */
+.lp2-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(248, 113, 113, 0.09);
+    border: 1px solid rgba(248, 113, 113, 0.24);
+    border-radius: 9px;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: #fca5a5;
+    margin-bottom: 20px;
+    animation: lp2-shake 0.3s ease;
+}
+
+@keyframes lp2-shake {
+    0%, 100% { transform: translateX(0);   }
+    20%       { transform: translateX(-4px); }
+    60%       { transform: translateX(4px);  }
+}
+
+/* ── Form & fields ───────────────────────────────────────────── */
+.lp2-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.lp2-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.lp2-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: #94a3b8;
+    letter-spacing: 0.01em;
+}
+
+.lp2-input {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 10px;
+    color: #f1f5f9;
+    font-size: 14px;
+    padding: 11px 14px;
+    outline: none;
+    transition: all 0.15s;
+    width: 100%;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+
+.lp2-input::placeholder {
+    color: #2d3a52;
+}
+
+.lp2-input:focus {
+    border-color: rgba(99, 102, 241, 0.5);
+    background: rgba(99, 102, 241, 0.05);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.lp2-input:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* ── Password field ──────────────────────────────────────────── */
+.lp2-pass-wrap {
+    position: relative;
+}
+
+.lp2-eye {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 4px;
+    color: #334155;
+    transition: color 0.12s;
+    border-radius: 4px;
+}
+
+.lp2-eye:hover {
+    color: #64748b;
+}
+
+/* ── Submit button ───────────────────────────────────────────── */
+.lp2-submit {
+    width: 100%;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    border: none;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 4px;
+    box-shadow: 0 4px 20px rgba(99, 102, 241, 0.35);
+    letter-spacing: -0.01em;
+    font-family: inherit;
+}
+
+.lp2-submit:hover:not(:disabled) {
+    background: linear-gradient(135deg, #4f52e0 0%, #7c3aed 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 28px rgba(99, 102, 241, 0.48);
+}
+
+.lp2-submit:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 3px 14px rgba(99, 102, 241, 0.3);
+}
+
+.lp2-submit:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* ── Switch link ─────────────────────────────────────────────── */
+.lp2-switch {
+    margin: 20px 0 0;
+    text-align: center;
+    font-size: 13px;
+    color: #3d4f6a;
+}
+
+.lp2-switch-btn {
+    background: none;
+    border: none;
+    color: #818cf8;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    padding: 0;
+    font-family: inherit;
+    transition: color 0.12s;
+}
+
+.lp2-switch-btn:hover {
+    color: #a5b4fc;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   RESPONSIVE — hide left panel on small screens
+   ════════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+    .lp2-left {
+        display: none;
+    }
+
+    .lp2-right {
+        border-left: none;
+        padding: 60px 24px 40px;
+    }
+}
+
+@media (max-width: 480px) {
+    .lp2-right {
+        padding: 56px 16px 32px;
+        align-items: flex-start;
+        padding-top: 80px;
+    }
+
+    .lp2-form-wrap {
+        max-width: 100%;
+    }
+}

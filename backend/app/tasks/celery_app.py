@@ -1,0 +1,22 @@
+from celery import Celery
+from app.config import settings
+
+celery_app = Celery(
+    "ai_vision",
+    broker=settings.celery_broker_url,
+    backend=settings.celery_result_backend,
+    include=[
+        "app.tasks.training",
+        "app.tasks.auto_annotate",
+    ],
+)
+
+celery_app.conf.update(
+    task_serializer="json",
+    result_serializer="json",
+    accept_content=["json"],
+    timezone="UTC",
+    enable_utc=True,
+    worker_prefetch_multiplier=1,
+    task_track_started=True,   # ← emit STARTED state so UI shows "Running"
+)
