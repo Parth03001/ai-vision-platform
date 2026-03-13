@@ -339,6 +339,24 @@ async def get_task_status(task_id: str):
 
 # ── Persistent job records ────────────────────────────────────────
 
+def _sanitize_meta(obj):
+    """
+    Recursively strip characters that cannot be encoded in WIN1252.
+
+    PostgreSQL on Windows defaults to WIN1252 encoding, which cannot store
+    emoji or other characters outside the Latin-1 Supplement range (e.g.
+    ⚙\ufe0f, …, ✅).  This prevents the UntranslatableCharacterError that
+    makes the UPDATE fail and the job result disappear from the UI.
+    """
+    if isinstance(obj, str):
+        return obj.encode("cp1252", errors="ignore").decode("cp1252")
+    if isinstance(obj, dict):
+        return {k: _sanitize_meta(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_meta(item) for item in obj]
+    return obj
+
+
 class JobCreateRequest(BaseModel):
     task_id: str
     project_id: str
@@ -361,7 +379,7 @@ async def create_job(body: JobCreateRequest, db: AsyncSession = Depends(get_db))
         project_id=body.project_id,
         job_type=body.job_type,
         status="pending",
-        result_meta=body.result_meta or {},
+        result_meta=_sanitize_meta(body.result_meta or {}),
         conf_used=body.conf_used,
     )
     db.add(job)
@@ -417,7 +435,7 @@ async def update_job(
     if body.status is not None:
         job.status = body.status
     if body.result_meta is not None:
-        job.result_meta = body.result_meta
+        job.result_meta = _sanitize_meta(body.result_meta)
     if body.finished_at is not None:
         # Strip timezone info — the column is TIMESTAMP WITHOUT TIME ZONE.
         # The frontend sends ISO strings with a "Z" suffix (UTC-aware), which
