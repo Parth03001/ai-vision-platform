@@ -23,7 +23,19 @@ router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 # ── Available YOLO models ─────────────────────────────────────────
 
 YOLO_MODELS = [
-    # YOLO11 (latest Ultralytics)
+    # YOLO26 (latest Ultralytics — edge-optimised, NMS-free)
+    {"value": "yolo26n.pt", "label": "YOLO26 Nano — fastest edge",    "family": "YOLO26"},
+    {"value": "yolo26s.pt", "label": "YOLO26 Small",                  "family": "YOLO26"},
+    {"value": "yolo26m.pt", "label": "YOLO26 Medium",                 "family": "YOLO26"},
+    {"value": "yolo26l.pt", "label": "YOLO26 Large",                  "family": "YOLO26"},
+    {"value": "yolo26x.pt", "label": "YOLO26 XL — best accuracy",    "family": "YOLO26"},
+    # YOLO12 (attention-centric, NeurIPS 2025)
+    {"value": "yolo12n.pt", "label": "YOLO12 Nano",                   "family": "YOLO12"},
+    {"value": "yolo12s.pt", "label": "YOLO12 Small",                  "family": "YOLO12"},
+    {"value": "yolo12m.pt", "label": "YOLO12 Medium",                 "family": "YOLO12"},
+    {"value": "yolo12l.pt", "label": "YOLO12 Large",                  "family": "YOLO12"},
+    {"value": "yolo12x.pt", "label": "YOLO12 XL",                     "family": "YOLO12"},
+    # YOLO11
     {"value": "yolo11n.pt", "label": "YOLO11 Nano — fastest",        "family": "YOLO11"},
     {"value": "yolo11s.pt", "label": "YOLO11 Small",                  "family": "YOLO11"},
     {"value": "yolo11m.pt", "label": "YOLO11 Medium",                 "family": "YOLO11"},

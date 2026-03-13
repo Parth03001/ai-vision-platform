@@ -21,6 +21,9 @@ class Settings(BaseSettings):
 
     # ── Training ──────────────────────────────────────────────────────────────
     seed_learning_rate: float = 0.0005
+    # Main model LR; when fine-tuning from seed weights the task halves this
+    # automatically to avoid catastrophic forgetting / hallucination.
+    main_learning_rate: float = 0.001
 
     # ── PostgreSQL ────────────────────────────────────────────────────────────
     postgres_host: str = "localhost"

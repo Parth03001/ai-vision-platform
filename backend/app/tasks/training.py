@@ -3,6 +3,7 @@ from ultralytics import YOLO
 import os
 import shutil
 import time
+import random
 from pathlib import Path
 from ..config import settings
 from ..connectors.statedb_connector import StateDBConnector
@@ -77,22 +78,54 @@ def _group_annotations(ann_rows):
     return anns_by_image
 
 
-def _build_yolo_dataset(img_rows, anns_by_image, classes, project_id):
-    """Build YOLO dataset directory on disk; return the path."""
-    dataset_path = Path(f"./temp_dataset_{project_id}")
-    dataset_path.mkdir(exist_ok=True)
-    (dataset_path / "images").mkdir(exist_ok=True)
-    (dataset_path / "labels").mkdir(exist_ok=True)
+def _split_images(img_rows, train_ratio=0.8, val_ratio=0.15, seed=42):
+    """
+    Shuffle and split images into train / val / test subsets.
 
-    for img in img_rows:
+    Rules
+    -----
+    - < 5 images  → everything in train; val mirrors train; no test
+    - 5–9 images  → 80 % train, 20 % val; no test
+    - ≥ 10 images → train_ratio train, val_ratio val, remainder test
+    """
+    imgs = list(img_rows)
+    rng = random.Random(seed)
+    rng.shuffle(imgs)
+    n = len(imgs)
+
+    if n < 5:
+        return imgs, imgs, []
+
+    n_train = max(1, round(n * train_ratio))
+
+    if n < 10:
+        n_val = n - n_train
+        return imgs[:n_train], imgs[n_train:], []
+
+    n_val = max(1, round(n * val_ratio))
+    if n_train + n_val >= n:
+        n_val = max(1, n - n_train)
+
+    return imgs[:n_train], imgs[n_train:n_train + n_val], imgs[n_train + n_val:]
+
+
+def _write_split(dataset_path, split_name, split_imgs, anns_by_image, classes):
+    """Copy images and write label files for one split (train/val/test)."""
+    (dataset_path / "images" / split_name).mkdir(parents=True, exist_ok=True)
+    (dataset_path / "labels" / split_name).mkdir(parents=True, exist_ok=True)
+
+    for img in split_imgs:
         real_path = Path(".") / img["filepath"].lstrip("/")
         if not real_path.exists():
             real_path = settings.upload_dir.parent / Path(img["filepath"].lstrip("/"))
 
         dest_name = os.path.basename(img["filepath"])
-        shutil.copy(real_path, dataset_path / "images" / dest_name)
+        shutil.copy(real_path, dataset_path / "images" / split_name / dest_name)
 
-        label_file = dataset_path / "labels" / (os.path.splitext(dest_name)[0] + ".txt")
+        label_file = (
+            dataset_path / "labels" / split_name
+            / (os.path.splitext(dest_name)[0] + ".txt")
+        )
         with open(label_file, "w") as f:
             for ann in anns_by_image.get(img["id"], []):
                 if ann["bbox"] and ann["class_name"] in classes:
@@ -100,17 +133,47 @@ def _build_yolo_dataset(img_rows, anns_by_image, classes, project_id):
                     bbox = ann["bbox"]
                     f.write(f"{cls_idx} {bbox[0]} {bbox[1]} {bbox[2]} {bbox[3]}\n")
 
-    data_yaml = {
-        "path": str(dataset_path.absolute()),
-        "train": "images",
-        "val":   "images",
+
+def _build_yolo_dataset(img_rows, anns_by_image, classes, project_id,
+                        train_ratio=0.8, val_ratio=0.15):
+    """
+    Build a YOLO dataset directory with proper train / val / test splits.
+
+    Directory layout
+    ----------------
+    temp_dataset_{project_id}/
+        images/
+            train/  val/  test/
+        labels/
+            train/  val/  test/
+        data.yaml
+    """
+    dataset_path = Path(f"./temp_dataset_{project_id}")
+    dataset_path.mkdir(exist_ok=True)
+
+    train_imgs, val_imgs, test_imgs = _split_images(
+        img_rows, train_ratio=train_ratio, val_ratio=val_ratio
+    )
+
+    _write_split(dataset_path, "train", train_imgs, anns_by_image, classes)
+    _write_split(dataset_path, "val",   val_imgs,   anns_by_image, classes)
+    if test_imgs:
+        _write_split(dataset_path, "test", test_imgs, anns_by_image, classes)
+
+    data_yaml: dict = {
+        "path":  str(dataset_path.absolute()),
+        "train": "images/train",
+        "val":   "images/val",
         "nc":    len(classes),
         "names": classes,
     }
+    if test_imgs:
+        data_yaml["test"] = "images/test"
+
     with open(dataset_path / "data.yaml", "w") as f:
         yaml.dump(data_yaml, f)
 
-    return dataset_path
+    return dataset_path, len(train_imgs), len(val_imgs), len(test_imgs)
 
 
 def _make_epoch_callback(celery_task, total_epochs, epoch_history, epoch_start_times):
@@ -205,7 +268,9 @@ def train_seed_model(
     anns_by_image = _group_annotations(ann_rows)
 
     # ── Phase 2: Build dataset ───────────────────────────────────
-    dataset_path = _build_yolo_dataset(img_rows, anns_by_image, classes, project_id)
+    dataset_path, n_train, n_val, n_test = _build_yolo_dataset(
+        img_rows, anns_by_image, classes, project_id
+    )
 
     # ── Phase 3: Train ───────────────────────────────────────────
     total_epochs   = epochs
@@ -221,7 +286,8 @@ def train_seed_model(
     self.update_state(
         state="STARTED",
         meta={"epoch": 0, "total_epochs": total_epochs, "eta_seconds": None,
-              "history": [], "model_name": model_name},
+              "history": [], "model_name": model_name,
+              "split": {"train": n_train, "val": n_val, "test": n_test}},
     )
 
     results = model.train(
@@ -229,6 +295,20 @@ def train_seed_model(
         epochs=total_epochs,
         imgsz=imgsz,
         lr0=settings.seed_learning_rate,
+        lrf=0.01,            # final lr = lr0 * lrf; gentle decay for small datasets
+        warmup_epochs=3,
+        weight_decay=0.0005,
+        # --- augmentation -------------------------------------------------
+        hsv_h=0.015,         # colour-space hue jitter
+        hsv_s=0.7,           # saturation jitter
+        hsv_v=0.4,           # brightness jitter
+        translate=0.1,       # random translation ± 10 %
+        scale=0.5,           # random scale ± 50 %
+        fliplr=0.5,          # horizontal flip probability
+        mosaic=1.0,          # mosaic augmentation (4-image)
+        mixup=0.1,           # MixUp blending probability
+        copy_paste=0.1,      # Copy-Paste augmentation probability
+        # ------------------------------------------------------------------
         project=str(settings.model_dir / project_id),
         name="seed_model",
         verbose=False,
@@ -249,6 +329,7 @@ def train_seed_model(
         "model_name": model_name,
         "metrics":    final_metrics,
         "history":    epoch_history,
+        "split":      {"train": n_train, "val": n_val, "test": n_test},
     }
 
 
@@ -302,7 +383,7 @@ def train_main_model(
     anns_by_image = _group_annotations(ann_rows)
 
     # ── Phase 2: Build dataset ───────────────────────────────────
-    dataset_path = _build_yolo_dataset(
+    dataset_path, n_train, n_val, n_test = _build_yolo_dataset(
         img_rows, anns_by_image, classes, f"{project_id}_main"
     )
 
@@ -310,6 +391,15 @@ def train_main_model(
     total_epochs   = epochs
     epoch_history  = []
     epoch_start_times = []
+
+    # When fine-tuning from seed weights use a conservative LR to avoid
+    # catastrophic forgetting / hallucination; when training from scratch
+    # use the standard main LR.
+    lr0 = (
+        settings.main_learning_rate / 2
+        if use_seed_weights
+        else settings.main_learning_rate
+    )
 
     model = YOLO(pretrained)
     model.add_callback(
@@ -321,13 +411,29 @@ def train_main_model(
         state="STARTED",
         meta={"epoch": 0, "total_epochs": total_epochs, "eta_seconds": None,
               "history": [], "model_name": model_name,
-              "use_seed_weights": use_seed_weights},
+              "use_seed_weights": use_seed_weights,
+              "split": {"train": n_train, "val": n_val, "test": n_test}},
     )
 
     results = model.train(
         data=str(dataset_path / "data.yaml"),
         epochs=total_epochs,
         imgsz=imgsz,
+        lr0=lr0,
+        lrf=0.01,            # final lr = lr0 * lrf
+        warmup_epochs=3,
+        weight_decay=0.0005,
+        # --- augmentation -------------------------------------------------
+        hsv_h=0.015,
+        hsv_s=0.7,
+        hsv_v=0.4,
+        translate=0.1,
+        scale=0.5,
+        fliplr=0.5,
+        mosaic=1.0,
+        mixup=0.15,          # slightly stronger MixUp for larger dataset
+        copy_paste=0.1,
+        # ------------------------------------------------------------------
         project=str(settings.model_dir / project_id),
         name="main_model",
         verbose=False,
@@ -349,4 +455,5 @@ def train_main_model(
         "use_seed_weights": use_seed_weights,
         "metrics":          final_metrics,
         "history":          epoch_history,
+        "split":            {"train": n_train, "val": n_val, "test": n_test},
     }
