@@ -227,15 +227,72 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
                 const res = await axios.get(`${API_URL}/pipeline/task-status/${taskId}`);
                 const { status, result, meta, error } = res.data;
 
+                // ── Compute NO_WORKER threshold outside setJobs ───────
+                let isNoWorker = false;
+                if (status === 'PENDING') {
+                    pendingTicks++;
+                    if (pendingTicks >= NO_WORKER_TICKS) isNoWorker = true;
+                } else if (status === 'STARTED') {
+                    pendingTicks = 0;
+                }
+
+                // ── All side effects BEFORE setJobs (pure updater) ────
+                // Stopping the interval and firing callbacks must not happen
+                // inside the setJobs functional updater — React may call it
+                // multiple times, which would double-trigger loadSetup() and
+                // cause the image grid to blank out unexpectedly.
+                if (status === 'SUCCESS' || status === 'FAILURE' || isNoWorker) {
+                    clearInterval(pollRef.current[taskId]);
+                    delete pollRef.current[taskId];
+                }
+
+                if (status === 'STARTED' && !startedPersisted) {
+                    startedPersisted = true;
+                    axios.patch(`${API_URL}/pipeline/jobs/${taskId}`, { status: 'started' }).catch(() => {});
+                }
+
+                if (status === 'SUCCESS') {
+                    const j = jobsRef.current.find(j => j.taskId === taskId);
+                    if (j) {
+                        const successLogs = [...j.logs, `✅  Done! ${result?.annotated_count ?? 0} image(s) annotated.`];
+                        const finalProgress = { current: j.imageCount, total: j.imageCount, annotated_count: result?.annotated_count };
+                        axios.patch(`${API_URL}/pipeline/jobs/${taskId}`, {
+                            status: 'success',
+                            result_meta: {
+                                logs: successLogs, result, progress: finalProgress,
+                                imageCount: j.imageCount,
+                                startedAt: j.startedAt instanceof Date ? j.startedAt.toISOString() : j.startedAt,
+                            },
+                            finished_at: new Date().toISOString(),
+                        }).catch(() => {});
+                    }
+                    loadSetup();
+                    if (onAnnotationsUpdated) onAnnotationsUpdated();
+                }
+
+                if (status === 'FAILURE') {
+                    const j = jobsRef.current.find(j => j.taskId === taskId);
+                    if (j) {
+                        const failLogs = [...j.logs, `❌  Failed: ${error || 'Unknown error'}`];
+                        axios.patch(`${API_URL}/pipeline/jobs/${taskId}`, {
+                            status: 'failure',
+                            result_meta: {
+                                logs: failLogs, error: error || 'Unknown error',
+                                imageCount: j.imageCount,
+                                startedAt: j.startedAt instanceof Date ? j.startedAt.toISOString() : j.startedAt,
+                            },
+                            finished_at: new Date().toISOString(),
+                        }).catch(() => {});
+                    }
+                }
+
+                // ── Pure state update — no side effects inside ────────
                 setJobs(prev => prev.map(j => {
                     if (j.taskId !== taskId) return j;
                     let newLogs = [...j.logs];
 
                     if (status === 'PENDING') {
-                        pendingTicks++;
-                        if (pendingTicks >= NO_WORKER_TICKS) {
-                            clearInterval(pollRef.current[taskId]);
-                            delete pollRef.current[taskId];
+                        if (isNoWorker) {
                             newLogs = [...newLogs, '❌  No worker detected after 37s.', '👉  Start Celery worker first.'];
                             return { ...j, status: 'NO_WORKER', logs: newLogs };
                         }
@@ -246,55 +303,23 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
                     }
 
                     if (status === 'STARTED') {
-                        pendingTicks = 0;
                         const progress = meta || j.progress;
                         if (meta?.current_image) {
                             const entry = `🔍  [${meta.current}/${meta.total}] ${meta.current_image}`;
                             const last = newLogs[newLogs.length - 1];
                             if (last !== entry) newLogs = [...newLogs, entry];
                         }
-                        if (!startedPersisted) {
-                            startedPersisted = true;
-                            axios.patch(`${API_URL}/pipeline/jobs/${taskId}`, { status: 'started' }).catch(() => {});
-                        }
                         return { ...j, status: 'STARTED', progress, logs: newLogs };
                     }
 
                     if (status === 'SUCCESS') {
-                        clearInterval(pollRef.current[taskId]);
-                        delete pollRef.current[taskId];
-                        newLogs = [...newLogs,
-                            `✅  Done! ${result?.annotated_count ?? 0} image(s) annotated.`];
+                        newLogs = [...newLogs, `✅  Done! ${result?.annotated_count ?? 0} image(s) annotated.`];
                         const finalProgress = { current: j.imageCount, total: j.imageCount, annotated_count: result?.annotated_count };
-                        loadSetup();
-                        if (onAnnotationsUpdated) onAnnotationsUpdated();
-                        // Persist final state
-                        axios.patch(`${API_URL}/pipeline/jobs/${taskId}`, {
-                            status: 'success',
-                            result_meta: {
-                                logs: newLogs, result, progress: finalProgress,
-                                imageCount: j.imageCount,
-                                startedAt: j.startedAt instanceof Date ? j.startedAt.toISOString() : j.startedAt,
-                            },
-                            finished_at: new Date().toISOString(),
-                        }).catch(() => {});
                         return { ...j, status: 'SUCCESS', result, logs: newLogs, progress: finalProgress };
                     }
 
                     if (status === 'FAILURE') {
-                        clearInterval(pollRef.current[taskId]);
-                        delete pollRef.current[taskId];
                         newLogs = [...newLogs, `❌  Failed: ${error || 'Unknown error'}`];
-                        // Persist final state
-                        axios.patch(`${API_URL}/pipeline/jobs/${taskId}`, {
-                            status: 'failure',
-                            result_meta: {
-                                logs: newLogs, error: error || 'Unknown error',
-                                imageCount: j.imageCount,
-                                startedAt: j.startedAt instanceof Date ? j.startedAt.toISOString() : j.startedAt,
-                            },
-                            finished_at: new Date().toISOString(),
-                        }).catch(() => {});
                         return { ...j, status: 'FAILURE', error, logs: newLogs };
                     }
 

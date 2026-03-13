@@ -262,6 +262,16 @@ Do you want to proceed?`;
         }
     }, [project]);
 
+    // Re-sync localClasses whenever the active project changes (e.g. user
+    // navigates back to dashboard then reopens the project — ProjectList may
+    // return stale data that doesn't yet include classes added this session).
+    useEffect(() => {
+        axios.get(`${API_URL}/projects/${project.id}`)
+            .then(res => setLocalClasses(res.data.classes || []))
+            .catch(() => setLocalClasses(project.classes || []));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [project.id]);
+
     const showStatus = (msg) => {
         setStatusMsg(msg);
         setTimeout(() => setStatusMsg(null), 3500);
