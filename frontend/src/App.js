@@ -37,15 +37,26 @@ function App() {
     const [currentProject, setCurrentProject] = useState(null);
     const [authChecking, setAuthChecking] = useState(true);
 
-    // ── On mount: validate saved session ─────────────────────────
+    // ── On mount: validate saved session + restore last project ──
     useEffect(() => {
         const token = localStorage.getItem('auth_token');
         if (!token) { setAuthChecking(false); return; }
 
         axios.get(`${API_URL}/auth/me`)
-            .then(res => {
+            .then(async res => {
                 setCurrentUser(res.data);
                 setView('dashboard');
+                // Restore the project the user was viewing before the reload
+                const savedId = sessionStorage.getItem('current_project_id');
+                if (savedId) {
+                    try {
+                        const projRes = await axios.get(`${API_URL}/projects/${savedId}`);
+                        setCurrentProject(projRes.data);
+                    } catch {
+                        // Project deleted or inaccessible — just show dashboard
+                        sessionStorage.removeItem('current_project_id');
+                    }
+                }
             })
             .catch(() => {
                 // Token invalid / expired — clear and show landing
@@ -59,6 +70,7 @@ function App() {
     // ── Listen for 401 interceptor signal ────────────────────────
     useEffect(() => {
         const handler = () => {
+            sessionStorage.removeItem('current_project_id');
             setCurrentUser(null);
             setCurrentProject(null);
             setView('landing');
@@ -77,10 +89,26 @@ function App() {
     const handleLogout = () => {
         localStorage.removeItem('auth_token');
         localStorage.removeItem('auth_user');
+        sessionStorage.removeItem('current_project_id');
         delete axios.defaults.headers.common['Authorization'];
         setCurrentUser(null);
         setCurrentProject(null);
         setView('landing');
+    };
+
+    const handleProjectSelect = (project) => {
+        sessionStorage.setItem('current_project_id', project.id);
+        setCurrentProject(project);
+    };
+
+    const handleBackToDashboard = () => {
+        sessionStorage.removeItem('current_project_id');
+        setCurrentProject(null);
+    };
+
+    const handleProjectUpdated = (updated) => {
+        sessionStorage.setItem('current_project_id', updated.id);
+        setCurrentProject(updated);
     };
 
     // ── Show nothing while checking saved session ─────────────────
@@ -127,7 +155,7 @@ function App() {
                         <nav className="app-nav">
                             <button
                                 className="btn-back"
-                                onClick={() => setCurrentProject(null)}
+                                onClick={handleBackToDashboard}
                             >
                                 ← Dashboard
                             </button>
@@ -152,10 +180,10 @@ function App() {
                 {currentProject ? (
                     <AnnotationWorkspace
                         project={currentProject}
-                        onProjectUpdated={(updated) => setCurrentProject(updated)}
+                        onProjectUpdated={handleProjectUpdated}
                     />
                 ) : (
-                    <ProjectList onProjectSelect={setCurrentProject} user={currentUser} />
+                    <ProjectList onProjectSelect={handleProjectSelect} user={currentUser} />
                 )}
             </main>
         </div>
