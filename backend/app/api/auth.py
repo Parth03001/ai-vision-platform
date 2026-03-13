@@ -15,9 +15,9 @@ from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.database import get_db
-from app.models.user import User
-from app.schemas.base import (
+from ..database import get_db
+from ..models.user import User
+from ..schemas.base import (
     UserCreate, UserLogin, UserResponse, TokenResponse,
 )
 

@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase
 
-from app.config import get_settings
+from .config import get_settings
 
 _settings = get_settings()
 
@@ -81,18 +81,18 @@ async def init_db() -> None:
 
     # 1. Bootstrap via StateDBManager (creates DB + Core tables)
     def _sync_bootstrap() -> None:
-        from app.connectors.statedb_manager import StateDBManager
+        from .connectors.statedb_manager import StateDBManager
         StateDBManager().initialize_database()
 
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(None, _sync_bootstrap)
 
     # 2. Ensure ORM-declared models are also reflected (belt + suspenders)
-    from app.models.project import Project           # noqa: F401
-    from app.models.image import Image               # noqa: F401
-    from app.models.annotation import Annotation     # noqa: F401
-    from app.models.training_job import TrainingJob  # noqa: F401
-    from app.models.user import User                 # noqa: F401
+    from .models.project import Project           # noqa: F401
+    from .models.image import Image               # noqa: F401
+    from .models.annotation import Annotation     # noqa: F401
+    from .models.training_job import TrainingJob  # noqa: F401
+    from .models.user import User                 # noqa: F401
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

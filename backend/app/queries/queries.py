@@ -15,7 +15,7 @@ Usage
     create_sql = DatabaseQueries.get_create_database_query("my_db")
 """
 
-from app.queries.query_validator import QueryValidator
+from .query_validator import QueryValidator
 
 
 class DatabaseQueries:

@@ -13,9 +13,9 @@ from transformers import (
 )
 import supervision as sv
 
-from app.tasks.celery_app import celery_app
-from app.config import settings
-from app.connectors.statedb_connector import StateDBConnector
+from .celery_app import celery_app
+from ..config import settings
+from ..connectors.statedb_connector import StateDBConnector
 
 # ── Model Cache ───────────────────────────────────────────────────────
 _MODELS = {

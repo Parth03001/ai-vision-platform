@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.database import get_db
-from app.models.image import Image
-from app.schemas.base import ImageResponse
-from app.config import settings
+from ..database import get_db
+from ..models.image import Image
+from ..schemas.base import ImageResponse
+from ..config import settings
 from typing import List
 import shutil
 import os

@@ -1,8 +1,8 @@
-from app.tasks.celery_app import celery_app
+from .celery_app import celery_app
 from ultralytics import YOLO
 from pathlib import Path
-from app.config import settings
-from app.connectors.statedb_connector import StateDBConnector
+from ..config import settings
+from ..connectors.statedb_connector import StateDBConnector
 import uuid
 import json
 

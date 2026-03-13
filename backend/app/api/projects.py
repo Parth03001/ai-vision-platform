@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete, update
-from app.database import get_db
-from app.models.project import Project
-from app.models.annotation import Annotation
-from app.models.image import Image
-from app.schemas.base import ProjectCreate, ProjectResponse, ProjectUpdateRequest, ClassRenameRequest
-from app.config import settings
+from ..database import get_db
+from ..models.project import Project
+from ..models.annotation import Annotation
+from ..models.image import Image
+from ..schemas.base import ProjectCreate, ProjectResponse, ProjectUpdateRequest, ClassRenameRequest
+from ..config import settings
 from typing import List, Dict
 import shutil
 

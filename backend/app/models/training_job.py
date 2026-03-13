@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import String, Float, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import Mapped, mapped_column
-from app.database import Base
+from ..database import Base
 
 
 class TrainingJob(Base):

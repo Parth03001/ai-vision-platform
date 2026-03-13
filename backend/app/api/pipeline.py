@@ -3,19 +3,19 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
-from app.tasks.training import train_seed_model, train_main_model
-from app.tasks.auto_annotate import auto_annotate_remaining
-from app.tasks.ai_prompt import detect_with_prompt, bulk_detect_with_prompt
-from app.tasks.celery_app import celery_app
-from app.database import get_db
-from app.models.image import Image
-from app.models.annotation import Annotation
-from app.models.project import Project
-from app.models.training_job import TrainingJob
+from ..tasks.training import train_seed_model, train_main_model
+from ..tasks.auto_annotate import auto_annotate_remaining
+from ..tasks.ai_prompt import detect_with_prompt, bulk_detect_with_prompt
+from ..tasks.celery_app import celery_app
+from ..database import get_db
+from ..models.image import Image
+from ..models.annotation import Annotation
+from ..models.project import Project
+from ..models.training_job import TrainingJob
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
 from celery.result import AsyncResult
-from app.config import settings
+from ..config import settings
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 

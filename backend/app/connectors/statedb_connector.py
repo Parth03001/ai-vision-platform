@@ -34,7 +34,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.pool import QueuePool
 
-from app.config import get_settings
+from ..config import get_settings
 
 logger = logging.getLogger(__name__)
 

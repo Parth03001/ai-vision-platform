@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.database import get_db
-from app.models.annotation import Annotation
-from app.models.image import Image
-from app.schemas.base import AnnotationCreate, AnnotationResponse
+from ..database import get_db
+from ..models.annotation import Annotation
+from ..models.image import Image
+from ..schemas.base import AnnotationCreate, AnnotationResponse
 from typing import List
 
 router = APIRouter(prefix="/annotations", tags=["annotations"])

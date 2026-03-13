@@ -28,10 +28,10 @@ import psycopg2
 from psycopg2 import sql as psql
 from sqlalchemy import inspect, text
 
-from app.config import get_settings
-from app.connectors.statedb_connector import StateDBConnector
-from app.connectors.table_creation import metadata
-from app.queries.queries import DatabaseQueries
+from ..config import get_settings
+from .statedb_connector import StateDBConnector
+from .table_creation import metadata
+from ..queries.queries import DatabaseQueries
 
 logger = logging.getLogger(__name__)
 
