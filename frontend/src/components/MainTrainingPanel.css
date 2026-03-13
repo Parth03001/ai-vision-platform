@@ -758,3 +758,35 @@
   min-width: 36px;
   text-align: right;
 }
+
+/* ── Dataset split badges ── */
+.mtp-split-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0;
+  flex-wrap: wrap;
+}
+.mtp-split-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.mtp-split-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.mtp-split-badge {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.mtp-split-badge--train  { background: rgba(99,102,241,0.18); color: #a5b4fc; }
+.mtp-split-badge--val    { background: rgba(16,185,129,0.18); color: #6ee7b7; }
+.mtp-split-badge--test   { background: rgba(245,158,11,0.18); color: #fcd34d; }
+.mtp-split-badge--total  { background: rgba(100,116,139,0.15); color: #94a3b8; }

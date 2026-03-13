@@ -715,6 +715,34 @@ const MainTrainingPanel = ({ project, onClose }) => {
                                             <EpochProgress meta={activeJob.epochMeta} />
                                         )}
 
+                                        {/* ── Dataset Split ── */}
+                                        {(() => {
+                                            const split = activeJob.epochMeta?.split || activeJob.result?.split;
+                                            if (!split) return null;
+                                            const total = (split.train || 0) + (split.val || 0) + (split.test || 0);
+                                            return (
+                                                <div className="mtp-split-row">
+                                                    <span className="mtp-split-label">Dataset split</span>
+                                                    <div className="mtp-split-badges">
+                                                        <span className="mtp-split-badge mtp-split-badge--train">
+                                                            Train&nbsp;{split.train}
+                                                        </span>
+                                                        <span className="mtp-split-badge mtp-split-badge--val">
+                                                            Val&nbsp;{split.val}
+                                                        </span>
+                                                        {split.test > 0 && (
+                                                            <span className="mtp-split-badge mtp-split-badge--test">
+                                                                Test&nbsp;{split.test}
+                                                            </span>
+                                                        )}
+                                                        <span className="mtp-split-badge mtp-split-badge--total">
+                                                            Total&nbsp;{total}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+
                                         {activeJob.epochMeta?.history?.length > 0 && (
                                             <div className="charts-section">
                                                 <LossChart history={activeJob.epochMeta.history} />
