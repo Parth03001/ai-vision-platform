@@ -394,3 +394,34 @@
 .aap-start-btn--secondary:hover:not(:disabled) {
   background: #2d3348; color: #f1f5f9; box-shadow: none; transform: none;
 }
+
+/* ── Progress stats row ── */
+.aap-progress-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.aap-stat {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+}
+.aap-stat--ok   { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+.aap-stat--warn { background: rgba(245,158,11,0.15);  color: #fcd34d; }
+.aap-stat--err  { background: rgba(239,68,68,0.15);   color: #fca5a5; }
+
+/* ── Result card extras ── */
+.aap-result-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.aap-result-hint {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 6px;
+  line-height: 1.5;
+}

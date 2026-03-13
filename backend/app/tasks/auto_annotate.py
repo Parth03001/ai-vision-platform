@@ -5,6 +5,39 @@ from ..config import settings
 from ..connectors.statedb_connector import StateDBConnector
 import uuid
 import json
+import os
+
+
+def _resolve_image_path(filepath: str) -> Path | None:
+    """
+    Try several strategies to locate an uploaded image file.
+
+    The Celery worker may run from a different CWD than the FastAPI server,
+    so Path(".") / filepath is unreliable.  We resolve to absolute paths
+    anchored to settings.upload_dir instead.
+    """
+    # Strip any leading slash so we can join safely
+    rel = filepath.lstrip("/")
+
+    candidates = [
+        # 1. Absolute path stored directly (rare but possible)
+        Path(filepath),
+        # 2. Relative to the process CWD (may work if worker and server share CWD)
+        Path(os.getcwd()) / rel,
+        # 3. Relative to upload_dir's resolved parent  (most reliable)
+        settings.upload_dir.resolve().parent / rel,
+        # 4. upload_dir itself as anchor
+        settings.upload_dir.resolve() / rel,
+    ]
+
+    for p in candidates:
+        try:
+            if p.resolve().exists():
+                return p.resolve()
+        except Exception:
+            continue
+
+    return None
 
 
 @celery_app.task(name="app.tasks.auto_annotate.auto_annotate_remaining", bind=True)
@@ -16,7 +49,7 @@ def auto_annotate_remaining(self, project_id: str, image_ids: list = None, conf:
     db = StateDBConnector()
 
     # ── 1. Check seed model (no DB needed) ──────────────────────────
-    model_path = settings.model_dir / project_id / "seed_best.pt"
+    model_path = settings.model_dir.resolve() / project_id / "seed_best.pt"
     if not model_path.exists():
         return {"error": "Seed model not found. Train the seed model first."}
 
@@ -57,6 +90,8 @@ def auto_annotate_remaining(self, project_id: str, image_ids: list = None, conf:
 
     total = len(img_rows)
     total_annotated = 0
+    total_skipped_path = 0   # file not found on disk
+    total_no_detection = 0   # file found but model detected nothing
 
     self.update_state(
         state="STARTED",
@@ -65,6 +100,8 @@ def auto_annotate_remaining(self, project_id: str, image_ids: list = None, conf:
             "total": total,
             "current_image": None,
             "annotated_count": 0,
+            "skipped_path": 0,
+            "no_detection": 0,
             "conf": conf,
         },
     )
@@ -73,21 +110,22 @@ def auto_annotate_remaining(self, project_id: str, image_ids: list = None, conf:
     with db.get_session() as conn:
         for idx, img in enumerate(img_rows):
 
-            # Resolve filesystem path
-            real_path = Path(".") / img["filepath"].lstrip("/")
-            if not real_path.exists():
-                real_path = settings.upload_dir.parent / Path(img["filepath"].lstrip("/"))
-
             label = img.get("filename") or img["filepath"]
 
-            if not real_path.exists():
+            # Resolve filesystem path robustly
+            real_path = _resolve_image_path(img["filepath"])
+
+            if real_path is None:
+                total_skipped_path += 1
                 self.update_state(
                     state="STARTED",
                     meta={
                         "current": idx + 1,
                         "total": total,
-                        "current_image": label,
+                        "current_image": f"[PATH NOT FOUND] {label}",
                         "annotated_count": total_annotated,
+                        "skipped_path": total_skipped_path,
+                        "no_detection": total_no_detection,
                         "conf": conf,
                     },
                 )
@@ -101,6 +139,8 @@ def auto_annotate_remaining(self, project_id: str, image_ids: list = None, conf:
                     "total": total,
                     "current_image": label,
                     "annotated_count": total_annotated,
+                    "skipped_path": total_skipped_path,
+                    "no_detection": total_no_detection,
                     "conf": conf,
                 },
             )
@@ -109,6 +149,7 @@ def auto_annotate_remaining(self, project_id: str, image_ids: list = None, conf:
             try:
                 results = model.predict(str(real_path), conf=conf, verbose=False)
             except Exception:
+                total_skipped_path += 1
                 continue
 
             # Build annotation rows for this image
@@ -141,11 +182,15 @@ def auto_annotate_remaining(self, project_id: str, image_ids: list = None, conf:
                     {"id": img["id"]},
                 )
                 total_annotated += 1
+            else:
+                total_no_detection += 1
     # all changes committed here
 
     return {
         "status": "success",
         "annotated_count": total_annotated,
         "total": total,
+        "skipped_path": total_skipped_path,
+        "no_detection": total_no_detection,
         "conf_used": conf,
     }

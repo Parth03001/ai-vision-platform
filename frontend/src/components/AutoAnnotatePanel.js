@@ -50,6 +50,8 @@ const ImageThumb = ({ img, checked, onChange }) => (
 const ProgressBar = ({ progress }) => {
     if (!progress || !progress.total) return null;
     const pct = Math.round((progress.current / progress.total) * 100);
+    const skipped  = progress.skipped_path  || 0;
+    const noDetect = progress.no_detection  || 0;
     return (
         <div className="aap-progress">
             <div className="aap-progress-header">
@@ -64,9 +66,17 @@ const ProgressBar = ({ progress }) => {
             <div className="aap-progress-bar">
                 <div className="aap-progress-fill" style={{ width: `${pct}%` }} />
             </div>
-            {progress.annotated_count > 0 && (
-                <p className="aap-progress-sub">✅ {progress.annotated_count} annotated so far</p>
-            )}
+            <div className="aap-progress-stats">
+                {(progress.annotated_count > 0) && (
+                    <span className="aap-stat aap-stat--ok">✅ {progress.annotated_count} annotated</span>
+                )}
+                {noDetect > 0 && (
+                    <span className="aap-stat aap-stat--warn">⬜ {noDetect} no detection</span>
+                )}
+                {skipped > 0 && (
+                    <span className="aap-stat aap-stat--err">⚠️ {skipped} file not found</span>
+                )}
+            </div>
         </div>
     );
 };
@@ -560,11 +570,32 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
                                         {activeJob.status === 'SUCCESS' && activeJob.result && (
                                             <div className="aap-result-card">
                                                 <span className="aap-result-icon">✅</span>
-                                                <div>
+                                                <div style={{ flex: 1 }}>
                                                     <p className="aap-result-title">
                                                         {activeJob.result.annotated_count} / {activeJob.result.total} images annotated
                                                     </p>
-                                                    <p className="aap-result-sub">Annotations saved. Reload workspace to see them.</p>
+                                                    <div className="aap-result-breakdown">
+                                                        {(activeJob.result.no_detection > 0) && (
+                                                            <span className="aap-stat aap-stat--warn">
+                                                                ⬜ {activeJob.result.no_detection} no detection
+                                                            </span>
+                                                        )}
+                                                        {(activeJob.result.skipped_path > 0) && (
+                                                            <span className="aap-stat aap-stat--err">
+                                                                ⚠️ {activeJob.result.skipped_path} file not found
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {activeJob.result.skipped_path > 0 && (
+                                                        <p className="aap-result-hint">
+                                                            Files not found means images are missing from disk. Check your upload folder.
+                                                        </p>
+                                                    )}
+                                                    {activeJob.result.no_detection > 0 && activeJob.result.skipped_path === 0 && (
+                                                        <p className="aap-result-hint">
+                                                            Images with no detection need more training data. Annotate more examples and retrain the seed model.
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
                                         )}
