@@ -4,12 +4,24 @@ import os
 import shutil
 import time
 import random
+import math
 from pathlib import Path
 from ..config import settings
 from ..connectors.statedb_connector import StateDBConnector
 from collections import defaultdict
 import yaml
 import json
+
+
+def _safe_float(v):
+    """Convert a numeric value to a JSON-safe float (None for NaN/Inf)."""
+    try:
+        f = float(v)
+        if math.isnan(f) or math.isinf(f):
+            return None
+        return round(f, 4)
+    except Exception:
+        return None
 
 
 # ── Shared helpers ────────────────────────────────────────────────
@@ -188,7 +200,7 @@ def _make_epoch_callback(celery_task, total_epochs, epoch_history, epoch_start_t
                 vals = vals.tolist() if hasattr(vals, "tolist") else list(vals)
                 names = getattr(trainer, "loss_names", ["box_loss", "cls_loss", "dfl_loss"])
                 for name, v in zip(names, vals):
-                    losses[name] = round(float(v), 4)
+                    losses[name] = _safe_float(v)
         except Exception:
             pass
 
@@ -197,7 +209,7 @@ def _make_epoch_callback(celery_task, total_epochs, epoch_history, epoch_start_t
             if hasattr(trainer, "metrics") and trainer.metrics:
                 for k, v in trainer.metrics.items():
                     clean = k.replace("metrics/", "").replace("(B)", "")
-                    metrics[clean] = round(float(v), 4)
+                    metrics[clean] = _safe_float(v)
         except Exception:
             pass
 
