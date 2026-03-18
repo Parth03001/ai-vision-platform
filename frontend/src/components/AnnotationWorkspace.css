@@ -307,6 +307,20 @@
   border-color: #8b5cf6;
 }
 
+.btn-action-review {
+  background: rgba(20, 184, 166, 0.08);
+  color: #2dd4bf;
+  border: 1px solid rgba(20, 184, 166, 0.22);
+}
+.btn-action-review:hover:not(:disabled) {
+  background: rgba(20, 184, 166, 0.16);
+  border-color: #14b8a6;
+}
+.btn-action-review:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 /* ── Canvas Area ────────────────────────────────────── */
 .workspace-canvas-area {
   flex: 1;

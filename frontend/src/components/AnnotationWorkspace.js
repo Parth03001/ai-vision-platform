@@ -7,6 +7,7 @@ import AutoAnnotatePanel from './AutoAnnotatePanel';
 import MainTrainingPanel from './MainTrainingPanel';
 import LabelsPanel from './LabelsPanel';
 import ModelsPanel from './ModelsPanel';
+import ReviewPanel from './ReviewPanel';
 import './AnnotationWorkspace.css';
 
 const API_URL = "http://localhost:8000/api/v1";
@@ -126,6 +127,7 @@ const AnnotationWorkspace = ({ project, onProjectUpdated }) => {
     const [showMainTrainingPanel, setShowMainTrainingPanel] = useState(false);
     const [showLabelsPanel, setShowLabelsPanel] = useState(false);
     const [showModelsPanel, setShowModelsPanel] = useState(false);
+    const [showReviewPanel, setShowReviewPanel] = useState(false);
     // Local copy of classes so edits from LabelsPanel are reflected instantly
     const [localClasses, setLocalClasses] = useState(project.classes || []);
     const [aiPrompt, setAiPrompt] = useState('');
@@ -462,6 +464,13 @@ Do you want to proceed?`;
                     </button>
                     <button className="btn-action btn-action-secondary" onClick={startAutoAnnotation}>
                         ✨ Auto-Annotate
+                    </button>
+                    <button
+                        className="btn-action btn-action-review"
+                        onClick={() => setShowReviewPanel(true)}
+                        disabled={images.filter(img => img.status === 'annotated').length === 0}
+                    >
+                        🔍 Review Annotations
                     </button>
                     <button className="btn-action btn-action-main" onClick={() => setShowMainTrainingPanel(true)}>
                         🎯 Train Main Model
@@ -825,6 +834,24 @@ Do you want to proceed?`;
                         // Propagate to parent (App.js) so project card stays in sync
                         if (onProjectUpdated) {
                             onProjectUpdated({ ...project, classes: updatedClasses });
+                        }
+                    }}
+                />
+            )}
+            {showReviewPanel && (
+                <ReviewPanel
+                    project={{ ...project, classes: localClasses }}
+                    images={images}
+                    onClose={() => setShowReviewPanel(false)}
+                    onAnnotationsUpdated={() => {
+                        // Refresh images and reload current image annotations after review
+                        axios.get(`${API_URL}/images/project/${project.id}`)
+                            .then(res => setImages(res.data))
+                            .catch(() => {});
+                        if (currentImage) {
+                            axios.get(`${API_URL}/annotations/image/${currentImage.id}`)
+                                .then(res => setAnnotations(res.data))
+                                .catch(() => {});
                         }
                     }}
                 />
