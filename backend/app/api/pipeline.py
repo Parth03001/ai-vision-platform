@@ -326,10 +326,10 @@ async def get_task_status(task_id: str):
         "error": None,
     }
     if result.state == "SUCCESS":
-        response["result"] = result.result
+        response["result"] = _sanitize_floats(result.result)
     elif result.state == "STARTED":
         try:
-            response["meta"] = result.info
+            response["meta"] = _sanitize_floats(result.info)
         except Exception:
             pass
     elif result.state == "FAILURE":
@@ -338,6 +338,24 @@ async def get_task_status(task_id: str):
 
 
 # ── Persistent job records ────────────────────────────────────────
+
+def _sanitize_floats(obj):
+    """
+    Recursively replace NaN / Infinity float values with None so that
+    FastAPI / Starlette can JSON-serialize the response without raising
+    'ValueError: Out of range float values are not JSON compliant'.
+    YOLO training occasionally emits NaN losses (e.g. empty batches) and
+    Celery stores them verbatim in its result backend.
+    """
+    import math
+    if isinstance(obj, float):
+        return None if (math.isnan(obj) or math.isinf(obj)) else obj
+    if isinstance(obj, dict):
+        return {k: _sanitize_floats(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_floats(item) for item in obj]
+    return obj
+
 
 def _sanitize_meta(obj):
     """
