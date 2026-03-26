@@ -6,6 +6,7 @@ from ..connectors.statedb_connector import StateDBConnector
 import uuid
 import json
 import os
+import numpy as np
 
 
 def _resolve_image_path(filepath: str) -> Path | None:
@@ -40,11 +41,67 @@ def _resolve_image_path(filepath: str) -> Path | None:
     return None
 
 
+def _nms_filter(ann_rows, iou_threshold=0.5):
+    """
+    Remove overlapping detections via Non-Maximum Suppression on normalised
+    xywh boxes.  Keeps the highest-confidence box when two boxes overlap
+    beyond *iou_threshold*.  Each entry in *ann_rows* must carry a ``conf``
+    key (float).
+    """
+    if len(ann_rows) <= 1:
+        return ann_rows
+
+    # Convert normalised xywh → xyxy for IoU calculation
+    boxes = np.array([[
+        a["bbox"][0] - a["bbox"][2] / 2,
+        a["bbox"][1] - a["bbox"][3] / 2,
+        a["bbox"][0] + a["bbox"][2] / 2,
+        a["bbox"][1] + a["bbox"][3] / 2,
+    ] for a in ann_rows])
+    scores = np.array([a["conf"] for a in ann_rows])
+
+    # Sort by confidence descending
+    order = scores.argsort()[::-1]
+    keep = []
+
+    while order.size > 0:
+        i = order[0]
+        keep.append(i)
+        if order.size == 1:
+            break
+
+        # IoU of current best vs remaining
+        xx1 = np.maximum(boxes[i, 0], boxes[order[1:], 0])
+        yy1 = np.maximum(boxes[i, 1], boxes[order[1:], 1])
+        xx2 = np.minimum(boxes[i, 2], boxes[order[1:], 2])
+        yy2 = np.minimum(boxes[i, 3], boxes[order[1:], 3])
+        inter = np.maximum(0.0, xx2 - xx1) * np.maximum(0.0, yy2 - yy1)
+        area_i = (boxes[i, 2] - boxes[i, 0]) * (boxes[i, 3] - boxes[i, 1])
+        area_j = ((boxes[order[1:], 2] - boxes[order[1:], 0]) *
+                  (boxes[order[1:], 3] - boxes[order[1:], 1]))
+        iou = inter / (area_i + area_j - inter + 1e-6)
+
+        remaining = np.where(iou <= iou_threshold)[0]
+        order = order[remaining + 1]
+
+    return [ann_rows[k] for k in keep]
+
+
 @celery_app.task(name="app.tasks.auto_annotate.auto_annotate_remaining", bind=True)
-def auto_annotate_remaining(self, project_id: str, image_ids: list = None, conf: float = 0.1):
+def auto_annotate_remaining(self, project_id: str, image_ids: list = None,
+                            conf: float = 0.25, use_tta: bool = False):
     """
     Synchronous Celery task — uses StateDBConnector (psycopg2) instead of the
     async SQLAlchemy engine so there is no asyncio event-loop conflict.
+
+    Parameters
+    ----------
+    conf : float
+        Minimum detection confidence (default raised to 0.25 to reduce
+        hallucinated annotations).
+    use_tta : bool
+        Enable Test-Time Augmentation — averages predictions over flipped /
+        scaled copies of each image for more robust detections.
     """
     db = StateDBConnector()
 
@@ -145,14 +202,17 @@ def auto_annotate_remaining(self, project_id: str, image_ids: list = None, conf:
                 },
             )
 
-            # Run YOLO prediction
+            # Run YOLO prediction (with optional TTA for robustness)
             try:
-                results = model.predict(str(real_path), conf=conf, verbose=False)
+                results = model.predict(
+                    str(real_path), conf=conf, verbose=False,
+                    augment=use_tta,
+                )
             except Exception:
                 total_skipped_path += 1
                 continue
 
-            # Build annotation rows for this image
+            # Build annotation rows — now storing confidence for filtering
             ann_rows = []
             for r in results:
                 for box in r.boxes:
@@ -160,14 +220,26 @@ def auto_annotate_remaining(self, project_id: str, image_ids: list = None, conf:
                     class_name = class_map.get(cls_idx)
                     if not class_name:
                         continue
+                    box_conf = float(box.conf[0].cpu().numpy())
                     xywhn = box.xywhn[0].cpu().numpy().tolist()
                     ann_rows.append({
                         "ann_id":     str(uuid.uuid4()),
                         "image_id":   img["id"],
                         "class_name": class_name,
+                        "bbox":       xywhn,
+                        "conf":       box_conf,
                         # Pass as JSON string; PostgreSQL casts to JSONB
                         "bbox_json":  json.dumps(xywhn),
                     })
+
+            # Per-class NMS to remove overlapping duplicate detections
+            if len(ann_rows) > 1:
+                by_class = {}
+                for a in ann_rows:
+                    by_class.setdefault(a["class_name"], []).append(a)
+                ann_rows = []
+                for cls_anns in by_class.values():
+                    ann_rows.extend(_nms_filter(cls_anns, iou_threshold=0.5))
 
             if ann_rows:
                 db.execute_many(

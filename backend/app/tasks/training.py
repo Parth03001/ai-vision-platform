@@ -310,6 +310,7 @@ def train_seed_model(
         lrf=0.01,            # final lr = lr0 * lrf; gentle decay for small datasets
         warmup_epochs=3,
         weight_decay=0.0005,
+        patience=20,         # early stopping — halt if val mAP stalls for 20 epochs
         # --- augmentation -------------------------------------------------
         hsv_h=0.015,         # colour-space hue jitter
         hsv_s=0.7,           # saturation jitter
@@ -318,6 +319,7 @@ def train_seed_model(
         scale=0.5,           # random scale ± 50 %
         fliplr=0.5,          # horizontal flip probability
         mosaic=1.0,          # mosaic augmentation (4-image)
+        close_mosaic=10,     # disable mosaic for last 10 epochs to stabilise
         mixup=0.1,           # MixUp blending probability
         copy_paste=0.1,      # Copy-Paste augmentation probability
         # ------------------------------------------------------------------
@@ -435,6 +437,7 @@ def train_main_model(
         lrf=0.01,            # final lr = lr0 * lrf
         warmup_epochs=3,
         weight_decay=0.0005,
+        patience=30,         # early stopping — halt if val mAP stalls for 30 epochs
         # --- augmentation -------------------------------------------------
         hsv_h=0.015,
         hsv_s=0.7,
@@ -443,6 +446,7 @@ def train_main_model(
         scale=0.5,
         fliplr=0.5,
         mosaic=1.0,
+        close_mosaic=10,     # disable mosaic for last 10 epochs to stabilise
         mixup=0.15,          # slightly stronger MixUp for larger dataset
         copy_paste=0.1,
         # ------------------------------------------------------------------

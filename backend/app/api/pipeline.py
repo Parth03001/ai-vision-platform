@@ -107,14 +107,16 @@ async def start_main_training(project_id: str, body: TrainMainRequest = None):
 
 class AutoAnnotateRequest(BaseModel):
     image_ids: Optional[List[str]] = None  # None = all pending
-    conf: float = 0.1                      # detection confidence threshold
+    conf: float = 0.25                     # detection confidence threshold (was 0.1 — too low)
+    use_tta: bool = False                  # Test-Time Augmentation for more robust detections
 
 
 @router.post("/auto-annotate/{project_id}")
 async def start_auto_annotation(project_id: str, body: AutoAnnotateRequest = None):
-    ids  = body.image_ids if body else None
-    conf = body.conf if body else 0.1
-    task = auto_annotate_remaining.delay(project_id, ids, conf)
+    ids     = body.image_ids if body else None
+    conf    = body.conf if body else 0.25
+    use_tta = body.use_tta if body else False
+    task = auto_annotate_remaining.delay(project_id, ids, conf, use_tta)
     return {"task_id": task.id, "status": "queued"}
 
 

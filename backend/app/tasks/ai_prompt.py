@@ -88,7 +88,7 @@ def refine_masks(image, boxes, processor, model, device):
     final_masks = []
     for i in range(len(boxes)):
         iou_scores = outputs.iou_scores[0, i].cpu().numpy()
-        best_idx = 2 if iou_scores[2] > (np.max(iou_scores) - 0.15) else np.argmax(iou_scores)
+        best_idx = np.argmax(iou_scores)
         raw_mask = outputs.pred_masks[0, i, best_idx]
         mask_full = torch.nn.functional.interpolate(
             raw_mask.unsqueeze(0).unsqueeze(0), 
@@ -128,7 +128,9 @@ def detect_with_prompt(self, project_id: str, image_id: str, prompt: str, clear_
         outputs_dino = models["m_dino"](**inputs_dino)
     
     results_dino = models["p_dino"].post_process_grounded_object_detection(
-        outputs_dino, inputs_dino.input_ids, threshold=0.15, text_threshold=0.15,
+        outputs_dino, inputs_dino.input_ids,
+        threshold=settings.dino_box_threshold,
+        text_threshold=settings.dino_text_threshold,
         target_sizes=torch.Tensor([[h, w]]).to(device)
     )[0]
     
@@ -141,16 +143,26 @@ def detect_with_prompt(self, project_id: str, image_id: str, prompt: str, clear_
     predictions = np.concatenate([boxes, scores.reshape(-1, 1)], axis=1)
     keep = sv.box_non_max_suppression(predictions, iou_threshold=0.5)
     boxes = boxes[keep]
-    
+    scores = scores[keep]
+
     img_area = w * h
-    boxes = np.array([b for b in boxes if ((b[2]-b[0])*(b[3]-b[1])) < (img_area * 0.4)])
-    
+    size_keep = [i for i, b in enumerate(boxes) if ((b[2]-b[0])*(b[3]-b[1])) < (img_area * 0.4)]
+    boxes = boxes[size_keep]
+    scores = scores[size_keep]
+
     if len(boxes) == 0: return {"status": "success", "count": 0}
 
     # 4. Stage 2: Verification (SigLIP)
     verified_idx = verify_with_siglip(image, boxes, prompt, models["p_siglip"], models["m_siglip"], device)
     if not verified_idx: return {"status": "success", "count": 0}
     verified_boxes = boxes[verified_idx]
+    verified_scores = scores[verified_idx]
+
+    # 4b. Post-verification NMS — remove overlapping boxes that survived SigLIP
+    if len(verified_boxes) > 1:
+        v_preds = np.concatenate([verified_boxes, verified_scores.reshape(-1, 1)], axis=1)
+        v_keep = sv.box_non_max_suppression(v_preds, iou_threshold=0.4)
+        verified_boxes = verified_boxes[v_keep]
 
     # 5. Stage 3: Segmentation (SAM 2)
     masks = refine_masks(image, verified_boxes, models["p_sam2"], models["m_sam2"], device)

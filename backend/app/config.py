@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     # automatically to avoid catastrophic forgetting / hallucination.
     main_learning_rate: float = 0.001
 
+    # ── Auto-annotation defaults ───────────────────────────────────────────
+    # Minimum confidence for auto-annotations (0.25 balances recall vs
+    # hallucination; the old default of 0.1 produced ~60 % false positives).
+    auto_annotate_conf: float = 0.25
+    # DINO zero-shot detection threshold (raised from 0.15 to reduce noise).
+    dino_box_threshold: float = 0.25
+    dino_text_threshold: float = 0.25
+
     # ── PostgreSQL ────────────────────────────────────────────────────────────
     postgres_host: str = "localhost"
     postgres_port: int = 5432
