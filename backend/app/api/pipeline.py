@@ -6,6 +6,11 @@ from datetime import datetime
 from ..tasks.training import train_seed_model, train_main_model
 from ..tasks.auto_annotate import auto_annotate_remaining
 from ..tasks.ai_prompt import detect_with_prompt, bulk_detect_with_prompt
+from ..tasks.active_learning import (
+    score_unlabeled_images,
+    curriculum_auto_annotate,
+    suggest_for_review,
+)
 from ..tasks.celery_app import celery_app
 from ..database import get_db
 from ..models.image import Image
@@ -280,6 +285,66 @@ async def download_model(project_id: str, model_type: str):
         media_type="application/octet-stream",
         filename=filename,
     )
+
+
+# ── Active Learning ──────────────────────────────────────────────
+
+class ScoreImagesRequest(BaseModel):
+    model_type: str = "seed"                  # "seed" or "main"
+    strategy: str = "combined"                # "confidence" | "entropy" | "tta" | "combined"
+    top_k: int = 0                            # 0 = all images
+    use_tta: bool = False
+
+
+class CurriculumAnnotateRequest(BaseModel):
+    high_conf: float = 0.6                    # auto-accept above this
+    low_conf: float = 0.25                    # skip below this
+    review_band_top: float = 0.6              # upper bound of review band
+    review_band_bottom: float = 0.35          # lower bound of review band
+    use_tta: bool = True
+
+
+class SuggestReviewRequest(BaseModel):
+    budget: int = 10                          # how many images to suggest
+    strategy: str = "combined"
+
+
+@router.post("/active-learning/score/{project_id}")
+async def start_scoring(project_id: str, body: ScoreImagesRequest = None):
+    """Score all pending images by uncertainty — returns ranked list."""
+    req = body or ScoreImagesRequest()
+    task = score_unlabeled_images.delay(
+        project_id, req.model_type, req.strategy, req.top_k, req.use_tta,
+    )
+    return {"task_id": task.id, "status": "queued"}
+
+
+@router.post("/active-learning/curriculum-annotate/{project_id}")
+async def start_curriculum_annotate(project_id: str, body: CurriculumAnnotateRequest = None):
+    """
+    Smart auto-annotation with confidence tiers:
+    - High confidence → auto-accepted
+    - Medium confidence → saved for human review
+    - Low confidence → skipped (suggest manual annotation)
+    """
+    req = body or CurriculumAnnotateRequest()
+    task = curriculum_auto_annotate.delay(
+        project_id, req.high_conf, req.low_conf,
+        req.review_band_top, req.review_band_bottom, req.use_tta,
+    )
+    return {"task_id": task.id, "status": "queued"}
+
+
+@router.post("/active-learning/suggest/{project_id}")
+async def start_suggest_review(project_id: str, body: SuggestReviewRequest = None):
+    """
+    Get the top-N most uncertain images that need human annotation.
+    This is the core active learning query — tells you exactly which
+    images to label for maximum model improvement.
+    """
+    req = body or SuggestReviewRequest()
+    task = suggest_for_review.delay(project_id, req.budget, req.strategy)
+    return {"task_id": task.id, "status": "queued"}
 
 
 # ── Dataset stats ────────────────────────────────────────────────

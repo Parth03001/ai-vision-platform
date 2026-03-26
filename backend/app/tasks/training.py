@@ -70,7 +70,7 @@ def _fetch_training_data(db, conn, project_id: str, status_filter: str = "annota
     params = {f"id_{i}": v for i, v in enumerate(image_ids)}
     ann_rows = db.execute_query(
         conn,
-        f"SELECT image_id, class_name, bbox FROM annotations "
+        f"SELECT image_id, class_name, bbox, source FROM annotations "
         f"WHERE image_id IN ({placeholders})",
         params,
     )
@@ -86,13 +86,37 @@ def _group_annotations(ann_rows):
         anns_by_image[row["image_id"]].append({
             "class_name": row["class_name"],
             "bbox": bbox,
+            "source": row.get("source", "manual"),
         })
     return anns_by_image
 
 
-def _split_images(img_rows, train_ratio=0.8, val_ratio=0.15, seed=42):
+def _classify_image_quality(anns: list) -> str:
+    """
+    Classify an image's annotation quality based on annotation sources.
+
+    Returns 'manual', 'auto_high', or 'auto_review' — used to place images
+    in the right training split (manual → always train, auto_review → val
+    only or down-weighted).
+    """
+    sources = {a.get("source", "manual") for a in anns}
+    if "manual" in sources:
+        return "manual"
+    if "auto_review" in sources:
+        return "auto_review"
+    return "auto_high"
+
+
+def _split_images(img_rows, train_ratio=0.8, val_ratio=0.15, seed=42,
+                   anns_by_image=None):
     """
     Shuffle and split images into train / val / test subsets.
+
+    When *anns_by_image* is supplied the split is **quality-aware**:
+    manual-annotated images are prioritised for training (highest quality),
+    while ``auto_review`` images are pushed toward validation so the model
+    is evaluated against potentially noisier labels rather than memorising
+    them.  ``auto`` (high-confidence) images are treated like manual.
 
     Rules
     -----
@@ -102,11 +126,37 @@ def _split_images(img_rows, train_ratio=0.8, val_ratio=0.15, seed=42):
     """
     imgs = list(img_rows)
     rng = random.Random(seed)
-    rng.shuffle(imgs)
     n = len(imgs)
 
     if n < 5:
+        rng.shuffle(imgs)
         return imgs, imgs, []
+
+    # Quality-aware ordering: manual first, then auto, then auto_review
+    if anns_by_image:
+        quality_order = {"manual": 0, "auto_high": 1, "auto_review": 2}
+        imgs.sort(
+            key=lambda im: quality_order.get(
+                _classify_image_quality(anns_by_image.get(im["id"], [])), 1
+            )
+        )
+        # Shuffle within each quality tier to avoid deterministic bias
+        manual_end = 0
+        for i, im in enumerate(imgs):
+            q = _classify_image_quality(anns_by_image.get(im["id"], []))
+            if q != "manual":
+                manual_end = i
+                break
+        else:
+            manual_end = n
+
+        manual_imgs = imgs[:manual_end]
+        rest_imgs = imgs[manual_end:]
+        rng.shuffle(manual_imgs)
+        rng.shuffle(rest_imgs)
+        imgs = manual_imgs + rest_imgs
+    else:
+        rng.shuffle(imgs)
 
     n_train = max(1, round(n * train_ratio))
 
@@ -164,7 +214,8 @@ def _build_yolo_dataset(img_rows, anns_by_image, classes, project_id,
     dataset_path.mkdir(exist_ok=True)
 
     train_imgs, val_imgs, test_imgs = _split_images(
-        img_rows, train_ratio=train_ratio, val_ratio=val_ratio
+        img_rows, train_ratio=train_ratio, val_ratio=val_ratio,
+        anns_by_image=anns_by_image,
     )
 
     _write_split(dataset_path, "train", train_imgs, anns_by_image, classes)
