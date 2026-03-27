@@ -11,6 +11,8 @@ from ..connectors.statedb_connector import StateDBConnector
 from collections import defaultdict
 import yaml
 import json
+import cv2
+import numpy as np
 
 
 def _safe_float(v):
@@ -22,6 +24,37 @@ def _safe_float(v):
         return round(f, 4)
     except Exception:
         return None
+
+
+def _preprocess_for_inspection(src_path: Path, dst_path: Path) -> None:
+    """
+    Apply CLAHE (Contrast Limited Adaptive Histogram Equalization) to the
+    image's L-channel (LAB colour space) before saving to the dataset.
+
+    Why this helps for water-pipe clip inspection
+    ---------------------------------------------
+    The OK/NOT-OK signal is the *visibility of the white plastic clip*.
+    CLAHE boosts local contrast so that bright (white) regions stand out
+    more clearly against the dark rubber pipe background, making the
+    distinction much easier for the model to learn — especially when the
+    dataset is small and the clips appear at varying exposures.
+
+    Falls back to a plain file copy if OpenCV fails to read the image.
+    """
+    img = cv2.imread(str(src_path))
+    if img is None:
+        shutil.copy(src_path, dst_path)
+        return
+
+    # Work in LAB: only enhance Lightness, leave colour channels intact
+    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+    l_ch, a_ch, b_ch = cv2.split(lab)
+
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    l_enhanced = clahe.apply(l_ch)
+
+    enhanced = cv2.cvtColor(cv2.merge([l_enhanced, a_ch, b_ch]), cv2.COLOR_LAB2BGR)
+    cv2.imwrite(str(dst_path), enhanced)
 
 
 # ── Shared helpers ────────────────────────────────────────────────
@@ -171,8 +204,9 @@ def _split_images(img_rows, train_ratio=0.8, val_ratio=0.15, seed=42,
     return imgs[:n_train], imgs[n_train:n_train + n_val], imgs[n_train + n_val:]
 
 
-def _write_split(dataset_path, split_name, split_imgs, anns_by_image, classes):
-    """Copy images and write label files for one split (train/val/test)."""
+def _write_split(dataset_path, split_name, split_imgs, anns_by_image, classes,
+                 preprocess: bool = True):
+    """Copy (and optionally CLAHE-enhance) images and write label files for one split."""
     (dataset_path / "images" / split_name).mkdir(parents=True, exist_ok=True)
     (dataset_path / "labels" / split_name).mkdir(parents=True, exist_ok=True)
 
@@ -182,7 +216,12 @@ def _write_split(dataset_path, split_name, split_imgs, anns_by_image, classes):
             real_path = settings.upload_dir.parent / Path(img["filepath"].lstrip("/"))
 
         dest_name = os.path.basename(img["filepath"])
-        shutil.copy(real_path, dataset_path / "images" / split_name / dest_name)
+        dest_path = dataset_path / "images" / split_name / dest_name
+
+        if preprocess:
+            _preprocess_for_inspection(real_path, dest_path)
+        else:
+            shutil.copy(real_path, dest_path)
 
         label_file = (
             dataset_path / "labels" / split_name
@@ -300,9 +339,9 @@ def _make_epoch_callback(celery_task, total_epochs, epoch_history, epoch_start_t
 def train_seed_model(
     self,
     project_id: str,
-    model_name: str = "yolo11n.pt",
-    epochs: int = 50,
-    imgsz: int = 640,
+    model_name: str = "yolo11s.pt",
+    epochs: int = 100,
+    imgsz: int = 1280,
 ):
     """
     Quick seed-training on manually annotated images.
@@ -358,21 +397,29 @@ def train_seed_model(
         epochs=total_epochs,
         imgsz=imgsz,
         lr0=settings.seed_learning_rate,
-        lrf=0.01,            # final lr = lr0 * lrf; gentle decay for small datasets
+        lrf=0.01,            # final lr = lr0 * lrf
+        cos_lr=True,         # cosine LR schedule — smoother convergence on small datasets
         warmup_epochs=3,
         weight_decay=0.0005,
-        patience=20,         # early stopping — halt if val mAP stalls for 20 epochs
-        # --- augmentation -------------------------------------------------
-        hsv_h=0.015,         # colour-space hue jitter
-        hsv_s=0.7,           # saturation jitter
-        hsv_v=0.4,           # brightness jitter
+        patience=30,         # early stopping
+        label_smoothing=0.1, # reduces overconfidence on small datasets
+        # --- augmentation (tuned for bright-feature inspection) -----------
+        # Key insight: the OK/NOT-OK signal is the *visibility of the white
+        # plastic clip*.  Heavy brightness / saturation jitter destroys that
+        # signal.  We intentionally keep HSV jitter low so the model learns
+        # from the actual colour cue rather than fighting augmentation noise.
+        hsv_h=0.015,         # minimal hue jitter (lighting colour shifts)
+        hsv_s=0.3,           # reduced from 0.7 — preserve white-clip colour signature
+        hsv_v=0.2,           # reduced from 0.4 — preserve clip brightness contrast
+        degrees=10,          # slight rotation — clips appear at various angles
         translate=0.1,       # random translation ± 10 %
-        scale=0.5,           # random scale ± 50 %
-        fliplr=0.5,          # horizontal flip probability
-        mosaic=1.0,          # mosaic augmentation (4-image)
-        close_mosaic=10,     # disable mosaic for last 10 epochs to stabilise
-        mixup=0.1,           # MixUp blending probability
-        copy_paste=0.1,      # Copy-Paste augmentation probability
+        scale=0.4,           # random scale ± 40 %
+        fliplr=0.5,          # horizontal flip (structurally valid for pipe clips)
+        flipud=0.1,          # occasional vertical flip
+        mosaic=0.5,          # reduced from 1.0 — avoid mixing OK+NOT-OK contexts
+        close_mosaic=15,     # disable mosaic for last 15 epochs to stabilise
+        mixup=0.0,           # disabled — pixel blending corrupts the binary signal
+        copy_paste=0.05,     # minimal copy-paste
         # ------------------------------------------------------------------
         project=str(settings.model_dir / project_id),
         name="seed_model",
@@ -406,10 +453,10 @@ def train_seed_model(
 def train_main_model(
     self,
     project_id: str,
-    model_name: str = "yolo11n.pt",
-    epochs: int = 100,
+    model_name: str = "yolo11s.pt",
+    epochs: int = 150,
     use_seed_weights: bool = True,
-    imgsz: int = 640,
+    imgsz: int = 1280,
 ):
     """
     Full/main training on ALL annotated images (manual + auto-annotated).
@@ -486,20 +533,24 @@ def train_main_model(
         imgsz=imgsz,
         lr0=lr0,
         lrf=0.01,            # final lr = lr0 * lrf
+        cos_lr=True,         # cosine LR schedule
         warmup_epochs=3,
         weight_decay=0.0005,
-        patience=30,         # early stopping — halt if val mAP stalls for 30 epochs
-        # --- augmentation -------------------------------------------------
+        patience=40,         # early stopping
+        label_smoothing=0.05,
+        # --- augmentation (same conservative tuning as seed) ---------------
         hsv_h=0.015,
-        hsv_s=0.7,
-        hsv_v=0.4,
+        hsv_s=0.3,           # reduced — preserve white-clip colour signature
+        hsv_v=0.2,           # reduced — preserve clip brightness contrast
+        degrees=10,
         translate=0.1,
-        scale=0.5,
+        scale=0.4,
         fliplr=0.5,
-        mosaic=1.0,
-        close_mosaic=10,     # disable mosaic for last 10 epochs to stabilise
-        mixup=0.15,          # slightly stronger MixUp for larger dataset
-        copy_paste=0.1,
+        flipud=0.1,
+        mosaic=0.5,          # reduced — avoid mixing OK+NOT-OK contexts
+        close_mosaic=20,     # disable mosaic for last 20 epochs to stabilise
+        mixup=0.0,           # disabled — pixel blending corrupts binary signal
+        copy_paste=0.05,
         # ------------------------------------------------------------------
         project=str(settings.model_dir / project_id),
         name="main_model",

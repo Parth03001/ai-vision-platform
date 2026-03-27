@@ -20,10 +20,14 @@ class Settings(BaseSettings):
     siglip_path: str = "../datavision_hf_models/siglip-so400m-patch14-384"
 
     # ── Training ──────────────────────────────────────────────────────────────
-    seed_learning_rate: float = 0.0005
+    # Raised from 0.0005 → 0.005: the original value was 20× below YOLO's
+    # default (0.01), which starved learning on small inspection datasets.
+    # 0.005 with cosine decay (lrf=0.01) gives a healthy learning curve
+    # while staying conservative enough not to blow up on few images.
+    seed_learning_rate: float = 0.005
     # Main model LR; when fine-tuning from seed weights the task halves this
     # automatically to avoid catastrophic forgetting / hallucination.
-    main_learning_rate: float = 0.001
+    main_learning_rate: float = 0.005
 
     # ── Auto-annotation defaults ───────────────────────────────────────────
     # Minimum confidence for auto-annotations (0.25 balances recall vs

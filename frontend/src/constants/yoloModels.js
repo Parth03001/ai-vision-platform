@@ -73,8 +73,11 @@ export const YOLO_MODELS_FLAT = YOLO_MODEL_GROUPS.flatMap(g =>
     g.models.map(m => ({ ...m, family: g.family }))
 );
 
-/** Default model for seed training (light & fast) */
-export const DEFAULT_SEED_MODEL = "yolo11n.pt";
+/** Default model for seed training.
+ *  Changed from yolo11n → yolo11s: the nano model lacks capacity to learn
+ *  subtle inspection cues (e.g. white-clip visibility on water pipes).
+ *  Small adds ~3× more parameters for a modest speed trade-off. */
+export const DEFAULT_SEED_MODEL = "yolo11s.pt";
 
-/** Default model for main training (slightly larger for accuracy) */
+/** Default model for main training (larger for best accuracy) */
 export const DEFAULT_MAIN_MODEL = "yolo11s.pt";
