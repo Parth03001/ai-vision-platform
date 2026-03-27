@@ -28,33 +28,52 @@ def _safe_float(v):
 
 def _preprocess_for_inspection(src_path: Path, dst_path: Path) -> None:
     """
-    Apply CLAHE (Contrast Limited Adaptive Histogram Equalization) to the
-    image's L-channel (LAB colour space) before saving to the dataset.
+    Three-stage preprocessing pipeline tuned for water-pipe clip inspection.
 
-    Why this helps for water-pipe clip inspection
-    ---------------------------------------------
-    The OK/NOT-OK signal is the *visibility of the white plastic clip*.
-    CLAHE boosts local contrast so that bright (white) regions stand out
-    more clearly against the dark rubber pipe background, making the
-    distinction much easier for the model to learn — especially when the
-    dataset is small and the clips appear at varying exposures.
+    Stage 1 — Aggressive CLAHE
+      clipLimit=4.0, tileGridSize=(4,4): smaller tiles mean tighter local
+      adaptation, so the white clip region is enhanced independently of the
+      surrounding dark rubber.  Higher clip limit allows more contrast gain
+      before clamping, making bright clip edges genuinely white rather than
+      just 'less dark'.
 
-    Falls back to a plain file copy if OpenCV fails to read the image.
+    Stage 2 — Gamma correction (γ = 0.75)
+      Brightens the midtone range without blowing out the already-bright
+      clip.  The formula  out = (in/255)^γ × 255  with γ < 1 lifts dark
+      areas selectively, increasing the perceived distance between the
+      dark rubber background and the white clip plastic.
+
+    Stage 3 — Unsharp mask sharpening
+      Subtracts a Gaussian-blurred copy from the original (weighted sum).
+      This crisp-ens the clip-to-rubber boundary — the hard edge between
+      white plastic and black hose is exactly the signal the model needs
+      to detect.
+
+    Falls back to a plain file copy if OpenCV cannot read the image.
     """
     img = cv2.imread(str(src_path))
     if img is None:
         shutil.copy(src_path, dst_path)
         return
 
-    # Work in LAB: only enhance Lightness, leave colour channels intact
+    # ── Stage 1: aggressive CLAHE on L channel ───────────────────
     lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
     l_ch, a_ch, b_ch = cv2.split(lab)
-
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(4, 4))
     l_enhanced = clahe.apply(l_ch)
+    out = cv2.cvtColor(cv2.merge([l_enhanced, a_ch, b_ch]), cv2.COLOR_LAB2BGR)
 
-    enhanced = cv2.cvtColor(cv2.merge([l_enhanced, a_ch, b_ch]), cv2.COLOR_LAB2BGR)
-    cv2.imwrite(str(dst_path), enhanced)
+    # ── Stage 2: gamma correction (γ=0.75) ───────────────────────
+    # Build a LUT so the per-pixel power operation is vectorised
+    gamma = 0.75
+    lut = np.array([(i / 255.0) ** gamma * 255 for i in range(256)], dtype=np.uint8)
+    out = cv2.LUT(out, lut)
+
+    # ── Stage 3: unsharp mask sharpening ─────────────────────────
+    blurred = cv2.GaussianBlur(out, (0, 0), sigmaX=2.0)
+    out = cv2.addWeighted(out, 1.5, blurred, -0.5, 0)
+
+    cv2.imwrite(str(dst_path), out)
 
 
 # ── Shared helpers ────────────────────────────────────────────────
