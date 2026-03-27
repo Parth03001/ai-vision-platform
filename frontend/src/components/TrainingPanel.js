@@ -147,7 +147,7 @@ const TrainingPanel = ({ project, onClose }) => {
     const [launching, setLaunching]     = useState(false);
     const [view, setView]               = useState('detail');
     const [selectedModel, setSelectedModel] = useState(DEFAULT_SEED_MODEL);
-    const [epochs, setEpochs]           = useState(50);
+    const [epochs, setEpochs]           = useState(100);
 
     const logsEndRef = useRef(null);
     const pollRef    = useRef({});
@@ -564,7 +564,7 @@ const TrainingPanel = ({ project, onClose }) => {
                                 {/* ── Static info rows ── */}
                                 <div className="tp-config-rows" style={{ marginTop: 12 }}>
                                     {[
-                                        ['Image Size', '640 × 640'],
+                                        ['Image Size', '1280 × 1280'],
                                         ['Classes', project.classes?.length > 0 ? project.classes.join(', ') : 'dynamic'],
                                         ['Training Images', stats?.annotated_images ?? '—'],
                                         ['Max Parallel Jobs', MAX_PARALLEL],
@@ -574,6 +574,16 @@ const TrainingPanel = ({ project, onClose }) => {
                                             <span className="tp-config-val">{v}</span>
                                         </div>
                                     ))}
+                                </div>
+
+                                {/* ── Preprocessing badge ── */}
+                                <div className="tp-info" style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span style={{ fontSize: 13 }}>⚡</span>
+                                    <span>
+                                        <strong>CLAHE contrast enhancement active</strong> — each training image is
+                                        preprocessed to boost white/bright region contrast before training.
+                                        This helps the model learn subtle defect signals (e.g. white clip visibility).
+                                    </span>
                                 </div>
                             </section>
 

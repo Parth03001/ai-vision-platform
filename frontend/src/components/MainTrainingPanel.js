@@ -151,7 +151,7 @@ const MainTrainingPanel = ({ project, onClose }) => {
     const [selectedModel, setSelectedModel]     = useState(DEFAULT_MAIN_MODEL);
     const [epochs, setEpochs]                   = useState(100);
     const [useSeedWeights, setUseSeedWeights]   = useState(true);
-    const [imgsz, setImgsz]                     = useState(640);
+    const [imgsz, setImgsz]                     = useState(1280);
 
     const logsEndRef = useRef(null);
     const pollRef    = useRef({});
@@ -603,7 +603,7 @@ const MainTrainingPanel = ({ project, onClose }) => {
                                         onChange={e => setImgsz(Number(e.target.value))}
                                     >
                                         {[320, 416, 512, 640, 768, 1024, 1280].map(s => (
-                                            <option key={s} value={s}>{s} × {s}{s === 640 ? ' (default)' : ''}</option>
+                                            <option key={s} value={s}>{s} × {s}{s === 1280 ? ' (default)' : ''}</option>
                                         ))}
                                     </select>
                                 </div>
@@ -620,6 +620,16 @@ const MainTrainingPanel = ({ project, onClose }) => {
                                             <span className="mtp-config-val">{v}</span>
                                         </div>
                                     ))}
+                                </div>
+
+                                {/* ── Preprocessing badge ── */}
+                                <div className="mtp-info" style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span style={{ fontSize: 13 }}>⚡</span>
+                                    <span>
+                                        <strong>CLAHE contrast enhancement active</strong> — each training image is
+                                        preprocessed to boost white/bright region contrast before training.
+                                        This helps the model learn subtle defect signals (e.g. white clip visibility).
+                                    </span>
                                 </div>
                             </section>
 
