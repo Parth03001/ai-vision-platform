@@ -236,7 +236,7 @@ def _write_split(dataset_path, split_name, split_imgs, anns_by_image, classes,
 
 
 def _build_yolo_dataset(img_rows, anns_by_image, classes, project_id,
-                        train_ratio=0.8, val_ratio=0.15):
+                        train_ratio=0.8, val_ratio=0.15, preprocess=True):
     """
     Build a YOLO dataset directory with proper train / val / test splits.
 
@@ -257,10 +257,10 @@ def _build_yolo_dataset(img_rows, anns_by_image, classes, project_id,
         anns_by_image=anns_by_image,
     )
 
-    _write_split(dataset_path, "train", train_imgs, anns_by_image, classes)
-    _write_split(dataset_path, "val",   val_imgs,   anns_by_image, classes)
+    _write_split(dataset_path, "train", train_imgs, anns_by_image, classes, preprocess=preprocess)
+    _write_split(dataset_path, "val",   val_imgs,   anns_by_image, classes, preprocess=preprocess)
     if test_imgs:
-        _write_split(dataset_path, "test", test_imgs, anns_by_image, classes)
+        _write_split(dataset_path, "test", test_imgs, anns_by_image, classes, preprocess=preprocess)
 
     data_yaml: dict = {
         "path":  str(dataset_path.absolute()),
@@ -342,6 +342,7 @@ def train_seed_model(
     model_name: str = "yolo11s.pt",
     epochs: int = 100,
     imgsz: int = 1280,
+    preprocess: bool = True,
 ):
     """
     Quick seed-training on manually annotated images.
@@ -371,7 +372,7 @@ def train_seed_model(
 
     # ── Phase 2: Build dataset ───────────────────────────────────
     dataset_path, n_train, n_val, n_test = _build_yolo_dataset(
-        img_rows, anns_by_image, classes, project_id
+        img_rows, anns_by_image, classes, project_id, preprocess=preprocess
     )
 
     # ── Phase 3: Train ───────────────────────────────────────────
@@ -457,6 +458,7 @@ def train_main_model(
     epochs: int = 150,
     use_seed_weights: bool = True,
     imgsz: int = 1280,
+    preprocess: bool = True,
 ):
     """
     Full/main training on ALL annotated images (manual + auto-annotated).
@@ -496,7 +498,7 @@ def train_main_model(
 
     # ── Phase 2: Build dataset ───────────────────────────────────
     dataset_path, n_train, n_val, n_test = _build_yolo_dataset(
-        img_rows, anns_by_image, classes, f"{project_id}_main"
+        img_rows, anns_by_image, classes, f"{project_id}_main", preprocess=preprocess
     )
 
     # ── Phase 3: Train ───────────────────────────────────────────

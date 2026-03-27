@@ -878,3 +878,22 @@
 .tp-split-badge--val    { background: rgba(16,185,129,0.18); color: #6ee7b7; }
 .tp-split-badge--test   { background: rgba(245,158,11,0.18); color: #fcd34d; }
 .tp-split-badge--total  { background: rgba(100,116,139,0.15); color: #94a3b8; }
+
+/* ── CLAHE preprocessing toggle (mirrors mtp-toggle-* in MainTrainingPanel.css) ── */
+.tp-toggle-row { display: flex; align-items: center; padding: 8px 0; }
+.tp-toggle-label { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+.tp-toggle-check {
+  appearance: none; -webkit-appearance: none;
+  width: 36px; height: 20px; background: #1e2330; border-radius: 999px;
+  position: relative; cursor: pointer; transition: background 0.2s; flex-shrink: 0;
+  border: 1px solid #334155;
+}
+.tp-toggle-check::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #475569; transition: transform 0.2s, background 0.2s;
+}
+.tp-toggle-check:checked { background: #4f46e5; border-color: #4f46e5; }
+.tp-toggle-check:checked::after { transform: translateX(16px); background: #fff; }
+.tp-toggle-text  { color: #94a3b8; font-size: 13px; font-weight: 500; }
+.tp-toggle-hint  { color: #334155; font-weight: 400; font-size: 10px; }

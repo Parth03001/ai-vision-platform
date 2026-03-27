@@ -3,6 +3,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
+import base64, io, cv2, numpy as np
 from ..tasks.training import train_seed_model, train_main_model
 from ..tasks.auto_annotate import auto_annotate_remaining
 from ..tasks.ai_prompt import detect_with_prompt, bulk_detect_with_prompt
@@ -80,32 +81,102 @@ async def get_available_models():
 # ── Training ──────────────────────────────────────────────────────
 
 class TrainSeedRequest(BaseModel):
-    model_name: str = "yolo11n.pt"
-    epochs: int = 50
-    imgsz: int = 640
+    model_name: str = "yolo11s.pt"
+    epochs: int = 100
+    imgsz: int = 1280
+    preprocess: bool = True
 
 
 @router.post("/train-seed/{project_id}")
 async def start_seed_training(project_id: str, body: TrainSeedRequest = None):
     req = body or TrainSeedRequest()
-    task = train_seed_model.delay(project_id, req.model_name, req.epochs, req.imgsz)
+    task = train_seed_model.delay(
+        project_id, req.model_name, req.epochs, req.imgsz, req.preprocess
+    )
     return {"task_id": task.id, "status": "queued"}
 
 
 class TrainMainRequest(BaseModel):
-    model_name: str = "yolo11n.pt"
-    epochs: int = 100
+    model_name: str = "yolo11s.pt"
+    epochs: int = 150
     use_seed_weights: bool = True
-    imgsz: int = 640
+    imgsz: int = 1280
+    preprocess: bool = True
 
 
 @router.post("/train-main/{project_id}")
 async def start_main_training(project_id: str, body: TrainMainRequest = None):
     req = body or TrainMainRequest()
     task = train_main_model.delay(
-        project_id, req.model_name, req.epochs, req.use_seed_weights, req.imgsz
+        project_id, req.model_name, req.epochs,
+        req.use_seed_weights, req.imgsz, req.preprocess
     )
     return {"task_id": task.id, "status": "queued"}
+
+
+@router.get("/clahe-preview/{project_id}")
+async def get_clahe_preview(project_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Return a before/after CLAHE preview using the first annotated image in the
+    project.  Both images are returned as base64-encoded JPEG data URIs so the
+    frontend can render them without an extra authenticated fetch.
+    """
+    from sqlalchemy import select
+    result = await db.execute(
+        select(Image)
+        .where(Image.project_id == project_id, Image.status == "annotated")
+        .limit(1)
+    )
+    img_row = result.scalar_one_or_none()
+    if img_row is None:
+        # Fall back to any image in the project
+        result = await db.execute(
+            select(Image).where(Image.project_id == project_id).limit(1)
+        )
+        img_row = result.scalar_one_or_none()
+
+    if img_row is None:
+        raise HTTPException(status_code=404, detail="No images found in project")
+
+    # Resolve file path
+    rel = img_row.filepath.lstrip("/")
+    candidates = [
+        settings.upload_dir.resolve().parent / rel,
+        settings.upload_dir.resolve() / rel,
+    ]
+    file_path = next((p for p in candidates if p.exists()), None)
+    if file_path is None:
+        raise HTTPException(status_code=404, detail="Image file not found on disk")
+
+    # Read with OpenCV
+    img_bgr = cv2.imread(str(file_path))
+    if img_bgr is None:
+        raise HTTPException(status_code=422, detail="Could not decode image")
+
+    # Resize to a reasonable preview size (max 480px wide)
+    h, w = img_bgr.shape[:2]
+    max_w = 480
+    if w > max_w:
+        scale = max_w / w
+        img_bgr = cv2.resize(img_bgr, (max_w, int(h * scale)))
+
+    def to_data_uri(bgr: np.ndarray) -> str:
+        ok, buf = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        if not ok:
+            raise HTTPException(status_code=500, detail="Image encoding failed")
+        return "data:image/jpeg;base64," + base64.b64encode(buf.tobytes()).decode()
+
+    # Apply CLAHE
+    lab = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2LAB)
+    l_ch, a_ch, b_ch = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    enhanced = cv2.cvtColor(cv2.merge([clahe.apply(l_ch), a_ch, b_ch]), cv2.COLOR_LAB2BGR)
+
+    return {
+        "filename": img_row.filename,
+        "original": to_data_uri(img_bgr),
+        "enhanced": to_data_uri(enhanced),
+    }
 
 
 # ── Auto-annotate ────────────────────────────────────────────────

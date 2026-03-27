@@ -148,6 +148,9 @@ const TrainingPanel = ({ project, onClose }) => {
     const [view, setView]               = useState('detail');
     const [selectedModel, setSelectedModel] = useState(DEFAULT_SEED_MODEL);
     const [epochs, setEpochs]           = useState(100);
+    const [preprocess, setPreprocess]   = useState(true);
+    const [clahePreview, setClahePreview] = useState(null);   // { original, enhanced, filename }
+    const [previewLoading, setPreviewLoading] = useState(false);
 
     const logsEndRef = useRef(null);
     const pollRef    = useRef({});
@@ -163,6 +166,15 @@ const TrainingPanel = ({ project, onClose }) => {
             .then(res => setStats(res.data))
             .catch(() => {})
             .finally(() => setStatsLoading(false));
+    }, [project.id]);
+
+    // ── CLAHE preview ──────────────────────────────────
+    const loadClahePreview = useCallback(() => {
+        setPreviewLoading(true);
+        axios.get(`${API_URL}/pipeline/clahe-preview/${project.id}`)
+            .then(res => setClahePreview(res.data))
+            .catch(() => setClahePreview(null))
+            .finally(() => setPreviewLoading(false));
     }, [project.id]);
 
     // ── Load persisted jobs from DB on mount ──────────
@@ -363,7 +375,7 @@ const TrainingPanel = ({ project, onClose }) => {
         if (!next) return;
         try {
             const res = await axios.post(`${API_URL}/pipeline/train-seed/${next.projectId}`, {
-                model_name: next.modelName, epochs: next.epochs,
+                model_name: next.modelName, epochs: next.epochs, preprocess: next.preprocess,
             });
             const taskId = res.data.task_id;
             const logs = [`📋  Task ID: ${taskId}`, '⏳  Waiting for worker…'];
@@ -398,7 +410,7 @@ const TrainingPanel = ({ project, onClose }) => {
                 logs: ['📋  Job queued — waiting for a free slot…'],
                 epochMeta: null, result: null, error: null, startedAt: new Date(),
             };
-            queueRef.current.push({ jobId: placeholder.id, projectId: project.id, modelName: selectedModel, epochs });
+            queueRef.current.push({ jobId: placeholder.id, projectId: project.id, modelName: selectedModel, epochs, preprocess });
             setJobs(prev => [...prev, placeholder]);
             setActiveJobId(placeholder.id);
             setLaunching(false);
@@ -407,7 +419,7 @@ const TrainingPanel = ({ project, onClose }) => {
 
         try {
             const res = await axios.post(`${API_URL}/pipeline/train-seed/${project.id}`, {
-                model_name: selectedModel, epochs,
+                model_name: selectedModel, epochs, preprocess,
             });
             const taskId = res.data.task_id;
             const job = makeJob(taskId);
@@ -576,15 +588,73 @@ const TrainingPanel = ({ project, onClose }) => {
                                     ))}
                                 </div>
 
-                                {/* ── Preprocessing badge ── */}
-                                <div className="tp-info" style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <span style={{ fontSize: 13 }}>⚡</span>
-                                    <span>
-                                        <strong>CLAHE contrast enhancement active</strong> — each training image is
-                                        preprocessed to boost white/bright region contrast before training.
-                                        This helps the model learn subtle defect signals (e.g. white clip visibility).
-                                    </span>
+                                {/* ── CLAHE preprocessing toggle ── */}
+                                <div className="tp-toggle-row" style={{ marginTop: 12 }}>
+                                    <label className="tp-toggle-label">
+                                        <input
+                                            type="checkbox"
+                                            className="tp-toggle-check"
+                                            checked={preprocess}
+                                            onChange={e => {
+                                                setPreprocess(e.target.checked);
+                                                if (e.target.checked && !clahePreview) loadClahePreview();
+                                            }}
+                                        />
+                                        <span className="tp-toggle-slider" />
+                                        <span className="tp-toggle-text">
+                                            CLAHE contrast preprocessing
+                                            <span className="tp-model-hint"> (recommended for bright-feature inspection)</span>
+                                        </span>
+                                    </label>
                                 </div>
+
+                                {/* ── Before / After preview ── */}
+                                {preprocess && (
+                                    <div style={{ marginTop: 10 }}>
+                                        {clahePreview ? (
+                                            <>
+                                                <p className="tp-breakdown-label" style={{ marginBottom: 6 }}>
+                                                    Preview — <em>{clahePreview.filename}</em>
+                                                </p>
+                                                <div style={{ display: 'flex', gap: 8 }}>
+                                                    <div style={{ flex: 1, textAlign: 'center' }}>
+                                                        <p style={{ fontSize: 10, color: '#64748b', marginBottom: 4 }}>Original</p>
+                                                        <img src={clahePreview.original} alt="Original" style={{ width: '100%', borderRadius: 4, border: '1px solid #1e2330' }} />
+                                                    </div>
+                                                    <div style={{ flex: 1, textAlign: 'center' }}>
+                                                        <p style={{ fontSize: 10, color: '#4ade80', marginBottom: 4 }}>After CLAHE</p>
+                                                        <img src={clahePreview.enhanced} alt="CLAHE enhanced" style={{ width: '100%', borderRadius: 4, border: '1px solid #4ade80' }} />
+                                                    </div>
+                                                </div>
+                                            </>
+                                        ) : previewLoading ? (
+                                            <div className="tp-info" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <div className="tp-spinner" style={{ width: 12, height: 12 }} />
+                                                <span>Loading preview from dataset…</span>
+                                            </div>
+                                        ) : (
+                                            <div className="tp-info" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <span>⚡</span>
+                                                <span>
+                                                    <strong>CLAHE active</strong> — contrast enhancement will be applied to all training images.
+                                                    {stats?.annotated_images > 0 && (
+                                                        <button
+                                                            onClick={loadClahePreview}
+                                                            style={{ marginLeft: 8, background: 'none', border: 'none', color: '#6366f1', cursor: 'pointer', fontSize: 11, textDecoration: 'underline', padding: 0 }}
+                                                        >
+                                                            Show preview
+                                                        </button>
+                                                    )}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                {!preprocess && (
+                                    <div className="tp-warning" style={{ marginTop: 8 }}>
+                                        Preprocessing disabled — raw images will be used as-is. Detection of subtle brightness-based defects may be less accurate.
+                                    </div>
+                                )}
                             </section>
 
                             <section className="tp-section">
