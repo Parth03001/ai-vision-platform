@@ -146,8 +146,5 @@ backend/data/*
 *.pyc
 /datavision_hf_models
 temp_dataset_*
-*.jpg
-*.jpeg
-*.png
 runs/
 venv/
