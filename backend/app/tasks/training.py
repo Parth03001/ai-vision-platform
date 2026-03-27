@@ -37,11 +37,11 @@ def _preprocess_for_inspection(src_path: Path, dst_path: Path) -> None:
       before clamping, making bright clip edges genuinely white rather than
       just 'less dark'.
 
-    Stage 2 — Gamma correction (γ = 0.75)
-      Brightens the midtone range without blowing out the already-bright
-      clip.  The formula  out = (in/255)^γ × 255  with γ < 1 lifts dark
-      areas selectively, increasing the perceived distance between the
-      dark rubber background and the white clip plastic.
+    Stage 2 — Gamma correction (γ = 1.3)
+      γ > 1 darkens the shadow/midtone range, keeping the dark rubber
+      background dark.  This widens the perceived gap between the black
+      hose and the white plastic clip — the opposite of γ < 1 which
+      lifted dark areas and turned the rubber a flat grey.
 
     Stage 3 — Unsharp mask sharpening
       Subtracts a Gaussian-blurred copy from the original (weighted sum).
@@ -56,22 +56,26 @@ def _preprocess_for_inspection(src_path: Path, dst_path: Path) -> None:
         shutil.copy(src_path, dst_path)
         return
 
-    # ── Stage 1: aggressive CLAHE on L channel ───────────────────
+    # ── Stage 1: moderate CLAHE on L channel ─────────────────────
+    # clipLimit=3.0 + larger tiles (8×8): enhances local contrast without
+    # flattening the whole image into grey.
     lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
     l_ch, a_ch, b_ch = cv2.split(lab)
-    clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(4, 4))
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
     l_enhanced = clahe.apply(l_ch)
     out = cv2.cvtColor(cv2.merge([l_enhanced, a_ch, b_ch]), cv2.COLOR_LAB2BGR)
 
-    # ── Stage 2: gamma correction (γ=0.75) ───────────────────────
-    # Build a LUT so the per-pixel power operation is vectorised
-    gamma = 0.75
-    lut = np.array([(i / 255.0) ** gamma * 255 for i in range(256)], dtype=np.uint8)
+    # ── Stage 2: gamma correction (γ=1.3) ───────────────────────
+    # γ > 1 darkens shadows: keeps the dark rubber background dark so
+    # the white plastic clip stands out MORE (opposite of γ < 1 which
+    # lifted dark areas and turned rubber grey).
+    lut = np.array([(i / 255.0) ** 1.3 * 255 for i in range(256)], dtype=np.uint8)
     out = cv2.LUT(out, lut)
 
     # ── Stage 3: unsharp mask sharpening ─────────────────────────
+    # Crispens the hard clip-to-rubber boundary.
     blurred = cv2.GaussianBlur(out, (0, 0), sigmaX=2.0)
-    out = cv2.addWeighted(out, 1.5, blurred, -0.5, 0)
+    out = cv2.addWeighted(out, 1.4, blurred, -0.4, 0)
 
     cv2.imwrite(str(dst_path), out)
 

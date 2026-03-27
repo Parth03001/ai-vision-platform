@@ -167,17 +167,17 @@ async def get_clahe_preview(project_id: str, db: AsyncSession = Depends(get_db))
         return "data:image/jpeg;base64," + base64.b64encode(buf.tobytes()).decode()
 
     # Apply the same 3-stage pipeline used during training
-    # Stage 1: aggressive CLAHE
+    # Stage 1: moderate CLAHE (clipLimit=3.0, tiles=8x8)
     lab = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2LAB)
     l_ch, a_ch, b_ch = cv2.split(lab)
-    clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(4, 4))
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
     enhanced = cv2.cvtColor(cv2.merge([clahe.apply(l_ch), a_ch, b_ch]), cv2.COLOR_LAB2BGR)
-    # Stage 2: gamma correction (γ=0.75) — lifts dark areas, widens clip/rubber gap
-    lut = np.array([(i / 255.0) ** 0.75 * 255 for i in range(256)], dtype=np.uint8)
+    # Stage 2: gamma γ=1.3 — darkens shadows so rubber stays dark, clips pop out
+    lut = np.array([(i / 255.0) ** 1.3 * 255 for i in range(256)], dtype=np.uint8)
     enhanced = cv2.LUT(enhanced, lut)
     # Stage 3: unsharp mask — sharpens clip-to-rubber boundary
     blurred = cv2.GaussianBlur(enhanced, (0, 0), sigmaX=2.0)
-    enhanced = cv2.addWeighted(enhanced, 1.5, blurred, -0.5, 0)
+    enhanced = cv2.addWeighted(enhanced, 1.4, blurred, -0.4, 0)
 
     return {
         "filename": img_row.filename,
