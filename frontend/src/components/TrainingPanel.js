@@ -174,6 +174,8 @@ const TrainingPanel = ({ project, onClose }) => {
     const [view, setView]               = useState('detail');
     const [selectedModel, setSelectedModel] = useState(DEFAULT_SEED_MODEL);
     const [epochs, setEpochs]           = useState(100);
+    const [imgsz, setImgsz]             = useState(640);
+    const [batch, setBatch]             = useState(-1);
     const [preprocess, setPreprocess]   = useState(true);
     const [clahePreview, setClahePreview] = useState(null);   // { original, enhanced, filename }
     const [previewLoading, setPreviewLoading] = useState(false);
@@ -414,6 +416,7 @@ const TrainingPanel = ({ project, onClose }) => {
         try {
             const res = await axios.post(`${API_URL}/pipeline/train-seed/${next.projectId}`, {
                 model_name: next.modelName, epochs: next.epochs, preprocess: next.preprocess,
+                imgsz: next.imgsz, batch: next.batch,
             });
             const taskId = res.data.task_id;
             const logs = [`📋  Task ID: ${taskId}`, '⏳  Waiting for worker…'];
@@ -466,7 +469,7 @@ const TrainingPanel = ({ project, onClose }) => {
                 logs: ['📋  Job queued — waiting for a free slot…'],
                 epochMeta: null, result: null, error: null, startedAt: new Date(),
             };
-            queueRef.current.push({ jobId: placeholder.id, projectId: project.id, modelName: selectedModel, epochs, preprocess });
+            queueRef.current.push({ jobId: placeholder.id, projectId: project.id, modelName: selectedModel, epochs, preprocess, imgsz, batch });
             setJobs(prev => [...prev, placeholder]);
             setActiveJobId(placeholder.id);
             setLaunching(false);
@@ -475,7 +478,7 @@ const TrainingPanel = ({ project, onClose }) => {
 
         try {
             const res = await axios.post(`${API_URL}/pipeline/train-seed/${project.id}`, {
-                model_name: selectedModel, epochs, preprocess,
+                model_name: selectedModel, epochs, preprocess, imgsz, batch,
             });
             const taskId = res.data.task_id;
             const job = makeJob(taskId);
@@ -629,10 +632,40 @@ const TrainingPanel = ({ project, onClose }) => {
                                     </div>
                                 </div>
 
+                                {/* ── Image Size ── */}
+                                <div className="tp-model-row">
+                                    <label className="tp-model-label">
+                                        Image Size
+                                        <span className="tp-model-hint"> (larger = slower, needs more VRAM)</span>
+                                    </label>
+                                    <select className="tp-model-select mtp-model-select--sm" value={imgsz} onChange={e => setImgsz(Number(e.target.value))}>
+                                        {[320, 416, 512, 640, 768, 1024, 1280].map(s => (
+                                            <option key={s} value={s}>{s} × {s}{s === 640 ? ' (recommended)' : ''}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* ── Batch Size ── */}
+                                <div className="tp-model-row">
+                                    <label className="tp-model-label">
+                                        Batch Size
+                                        <span className="tp-model-hint"> (Auto finds max that fits in VRAM)</span>
+                                    </label>
+                                    <select className="tp-model-select mtp-model-select--sm" value={batch} onChange={e => setBatch(Number(e.target.value))}>
+                                        <option value={-1}>Auto (recommended)</option>
+                                        {[2, 4, 8, 16, 32].map(b => <option key={b} value={b}>{b}</option>)}
+                                    </select>
+                                </div>
+
+                                {imgsz > 640 && (
+                                    <div className="tp-warning" style={{ marginTop: 6 }}>
+                                        ⚠️ Image size {imgsz} uses significantly more VRAM. With 20 GB GPU, keep batch ≤ 4 or use Auto batch. Recommended: 640 for safe training.
+                                    </div>
+                                )}
+
                                 {/* ── Static info rows ── */}
                                 <div className="tp-config-rows" style={{ marginTop: 12 }}>
                                     {[
-                                        ['Image Size', '1280 × 1280'],
                                         ['Classes', project.classes?.length > 0 ? project.classes.join(', ') : 'dynamic'],
                                         ['Training Images', stats?.annotated_images ?? '—'],
                                         ['Max Parallel Jobs', MAX_PARALLEL],

@@ -177,7 +177,8 @@ const MainTrainingPanel = ({ project, onClose }) => {
     const [selectedModel, setSelectedModel]     = useState(DEFAULT_MAIN_MODEL);
     const [epochs, setEpochs]                   = useState(150);
     const [useSeedWeights, setUseSeedWeights]   = useState(true);
-    const [imgsz, setImgsz]                     = useState(1280);
+    const [imgsz, setImgsz]                     = useState(640);
+    const [batch, setBatch]                     = useState(-1);
     const [preprocess, setPreprocess]           = useState(true);
     const [clahePreview, setClahePreview]       = useState(null);
     const [previewLoading, setPreviewLoading]   = useState(false);
@@ -424,7 +425,7 @@ const MainTrainingPanel = ({ project, onClose }) => {
             const res = await axios.post(`${API_URL}/pipeline/train-main/${next.projectId}`, {
                 model_name: next.modelName, epochs: next.epochs,
                 use_seed_weights: next.useSeedWeights, imgsz: next.imgsz,
-                preprocess: next.preprocess,
+                preprocess: next.preprocess, batch: next.batch,
             });
             const taskId = res.data.task_id;
             const logs = [`📋  Task ID: ${taskId}`, '⏳  Waiting for worker…'];
@@ -479,7 +480,7 @@ const MainTrainingPanel = ({ project, onClose }) => {
             };
             queueRef.current.push({
                 jobId: placeholder.id, projectId: project.id,
-                modelName: selectedModel, epochs, useSeedWeights, imgsz, preprocess,
+                modelName: selectedModel, epochs, useSeedWeights, imgsz, preprocess, batch,
             });
             setJobs(prev => [...prev, placeholder]);
             setActiveJobId(placeholder.id);
@@ -489,7 +490,7 @@ const MainTrainingPanel = ({ project, onClose }) => {
 
         try {
             const res = await axios.post(`${API_URL}/pipeline/train-main/${project.id}`, {
-                model_name: selectedModel, epochs, use_seed_weights: useSeedWeights, imgsz, preprocess,
+                model_name: selectedModel, epochs, use_seed_weights: useSeedWeights, imgsz, preprocess, batch,
             });
             const taskId = res.data.task_id;
             const job = makeJob(taskId, selectedModel);
@@ -666,17 +667,41 @@ const MainTrainingPanel = ({ project, onClose }) => {
 
                                 {/* Image size */}
                                 <div className="mtp-model-row">
-                                    <label className="mtp-model-label">Image Size</label>
+                                    <label className="mtp-model-label">
+                                        Image Size
+                                        <span className="mtp-model-hint"> (larger = slower, needs more VRAM)</span>
+                                    </label>
                                     <select
                                         className="mtp-model-select mtp-model-select--sm"
                                         value={imgsz}
                                         onChange={e => setImgsz(Number(e.target.value))}
                                     >
                                         {[320, 416, 512, 640, 768, 1024, 1280].map(s => (
-                                            <option key={s} value={s}>{s} × {s}{s === 1280 ? ' (default)' : ''}</option>
+                                            <option key={s} value={s}>{s} × {s}{s === 640 ? ' (recommended)' : ''}</option>
                                         ))}
                                     </select>
                                 </div>
+
+                                {/* Batch size */}
+                                <div className="mtp-model-row">
+                                    <label className="mtp-model-label">
+                                        Batch Size
+                                        <span className="mtp-model-hint"> (Auto finds max that fits in VRAM)</span>
+                                    </label>
+                                    <select
+                                        className="mtp-model-select mtp-model-select--sm"
+                                        value={batch}
+                                        onChange={e => setBatch(Number(e.target.value))}
+                                    >
+                                        <option value={-1}>Auto (recommended)</option>
+                                        {[2, 4, 8, 16, 32].map(b => <option key={b} value={b}>{b}</option>)}
+                                    </select>
+                                </div>
+                                {imgsz > 640 && (
+                                    <div className="mtp-warning" style={{ marginTop: 6 }}>
+                                        ⚠️ Image size {imgsz} uses significantly more VRAM. With 20 GB GPU, keep batch ≤ 4 or use Auto batch. Recommended: 640 for safe training.
+                                    </div>
+                                )}
 
                                 {/* Static info */}
                                 <div className="mtp-config-rows" style={{ marginTop: 12 }}>

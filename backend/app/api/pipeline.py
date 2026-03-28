@@ -83,15 +83,16 @@ async def get_available_models():
 class TrainSeedRequest(BaseModel):
     model_name: str = "yolo11s.pt"
     epochs: int = 100
-    imgsz: int = 1280
+    imgsz: int = 640
     preprocess: bool = True
+    batch: int = -1   # -1 = YOLO auto-batch (safe for any VRAM)
 
 
 @router.post("/train-seed/{project_id}")
 async def start_seed_training(project_id: str, body: TrainSeedRequest = None):
     req = body or TrainSeedRequest()
     task = train_seed_model.delay(
-        project_id, req.model_name, req.epochs, req.imgsz, req.preprocess
+        project_id, req.model_name, req.epochs, req.imgsz, req.preprocess, req.batch
     )
     return {"task_id": task.id, "status": "queued"}
 
@@ -100,8 +101,9 @@ class TrainMainRequest(BaseModel):
     model_name: str = "yolo11s.pt"
     epochs: int = 150
     use_seed_weights: bool = True
-    imgsz: int = 1280
+    imgsz: int = 640
     preprocess: bool = True
+    batch: int = -1   # -1 = YOLO auto-batch (safe for any VRAM)
 
 
 @router.post("/train-main/{project_id}")
@@ -109,7 +111,7 @@ async def start_main_training(project_id: str, body: TrainMainRequest = None):
     req = body or TrainMainRequest()
     task = train_main_model.delay(
         project_id, req.model_name, req.epochs,
-        req.use_seed_weights, req.imgsz, req.preprocess
+        req.use_seed_weights, req.imgsz, req.preprocess, req.batch
     )
     return {"task_id": task.id, "status": "queued"}
 

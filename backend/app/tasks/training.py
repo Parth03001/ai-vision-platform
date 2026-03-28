@@ -400,8 +400,9 @@ def train_seed_model(
     project_id: str,
     model_name: str = "yolo11s.pt",
     epochs: int = 100,
-    imgsz: int = 1280,
+    imgsz: int = 640,
     preprocess: bool = True,
+    batch: int = -1,
 ):
     """
     Quick seed-training on manually annotated images.
@@ -457,6 +458,7 @@ def train_seed_model(
         data=str(dataset_path / "data.yaml"),
         epochs=total_epochs,
         imgsz=imgsz,
+        batch=batch,         # -1 = YOLO auto-batch (targets 60% VRAM utilisation)
         lr0=settings.seed_learning_rate,
         lrf=0.01,            # final lr = lr0 * lrf
         cos_lr=True,         # cosine LR schedule — smoother convergence on small datasets
@@ -517,8 +519,9 @@ def train_main_model(
     model_name: str = "yolo11s.pt",
     epochs: int = 150,
     use_seed_weights: bool = True,
-    imgsz: int = 1280,
+    imgsz: int = 640,
     preprocess: bool = True,
+    batch: int = -1,
 ):
     """
     Full/main training on ALL annotated images (manual + auto-annotated).
@@ -594,6 +597,7 @@ def train_main_model(
         data=str(dataset_path / "data.yaml"),
         epochs=total_epochs,
         imgsz=imgsz,
+        batch=batch,         # -1 = YOLO auto-batch (targets 60% VRAM utilisation)
         lr0=lr0,
         lrf=0.01,            # final lr = lr0 * lrf
         cos_lr=True,         # cosine LR schedule
