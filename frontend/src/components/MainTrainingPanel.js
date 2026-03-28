@@ -12,6 +12,20 @@ const POLL_INTERVAL = 3000;
 const MAX_PARALLEL  = 2;
 const NO_WORKER_TICKS = 15; // ~45 s
 
+// ── Split preview (mirrors backend _split_images logic) ──────────────
+function computeSplitPreview(n) {
+    if (n < 1) return null;
+    if (n < 5)  return { train: n, val: n, test: 0, mirror: true };
+    if (n < 10) {
+        const train = Math.max(1, Math.round(n * 0.8));
+        return { train, val: n - train, test: 0, mirror: false };
+    }
+    const train = Math.max(1, Math.round(n * 0.8));
+    const val   = Math.max(1, Math.round(n * 0.15));
+    const test  = n - train - val > 0 ? n - train - val : 0;
+    return { train, val, test, mirror: false };
+}
+
 // ── Helpers ────────────────────────────────────────────────────────
 const makeJob = (taskId, modelName) => ({
     id: Date.now(),
@@ -603,6 +617,22 @@ const MainTrainingPanel = ({ project, onClose }) => {
                                         {useSeedWeights && !hasSeed && (
                                             <div className="mtp-warning">⚠️ Seed model required when "Fine-tune from seed" is on. Train seed model first, or disable fine-tuning.</div>
                                         )}
+                                        {/* ── Split preview ── */}
+                                        {(() => {
+                                            const sp = computeSplitPreview(stats.annotated_images);
+                                            if (!sp) return null;
+                                            return (
+                                                <div className="mtp-split-preview">
+                                                    <span className="mtp-split-preview-label">Expected split</span>
+                                                    <div className="mtp-split-badges">
+                                                        <span className="mtp-split-badge mtp-split-badge--train">Train&nbsp;{sp.train}</span>
+                                                        <span className="mtp-split-badge mtp-split-badge--val">Val&nbsp;{sp.val}{sp.mirror ? ' (mirrors train)' : ''}</span>
+                                                        {sp.test > 0 && <span className="mtp-split-badge mtp-split-badge--test">Test&nbsp;{sp.test}</span>}
+                                                        <span className="mtp-split-badge mtp-split-badge--total">Total&nbsp;{stats.annotated_images}</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                     </>
                                 ) : <p className="mtp-error-text">Failed to load stats.</p>}
                             </section>

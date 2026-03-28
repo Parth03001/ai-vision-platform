@@ -12,6 +12,20 @@ const POLL_INTERVAL = 3000;
 const MAX_PARALLEL = 2;
 const NO_WORKER_TICKS = 15; // ~45s
 
+// ── Split preview (mirrors backend _split_images logic) ──────────────
+function computeSplitPreview(n) {
+    if (n < 1) return null;
+    if (n < 5)  return { train: n, val: n, test: 0, mirror: true };
+    if (n < 10) {
+        const train = Math.max(1, Math.round(n * 0.8));
+        return { train, val: n - train, test: 0, mirror: false };
+    }
+    const train = Math.max(1, Math.round(n * 0.8));
+    const val   = Math.max(1, Math.round(n * 0.15));
+    const test  = n - train - val > 0 ? n - train - val : 0;
+    return { train, val, test, mirror: false };
+}
+
 // ── Helpers ───────────────────────────────────────────
 const makeJob = (taskId) => ({
     id: Date.now(),
@@ -588,6 +602,23 @@ const TrainingPanel = ({ project, onClose }) => {
                                         {stats.pending_images > 0 && readyToTrain && (
                                             <div className="tp-info">💡 {stats.pending_images} unannotated image{stats.pending_images !== 1 ? 's' : ''} — more annotations improve accuracy.</div>
                                         )}
+                                        {/* ── Split preview ── */}
+                                        {(() => {
+                                            const sp = computeSplitPreview(stats.annotated_images);
+                                            if (!sp) return null;
+                                            const total = sp.train + (sp.mirror ? 0 : sp.val) + sp.test;
+                                            return (
+                                                <div className="tp-split-preview">
+                                                    <span className="tp-split-preview-label">Expected split</span>
+                                                    <div className="tp-split-badges">
+                                                        <span className="tp-split-badge tp-split-badge--train">Train&nbsp;{sp.train}</span>
+                                                        <span className="tp-split-badge tp-split-badge--val">Val&nbsp;{sp.val}{sp.mirror ? ' (mirrors train)' : ''}</span>
+                                                        {sp.test > 0 && <span className="tp-split-badge tp-split-badge--test">Test&nbsp;{sp.test}</span>}
+                                                        <span className="tp-split-badge tp-split-badge--total">Total&nbsp;{stats.annotated_images}</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                     </>
                                 ) : <p className="tp-error-text">Failed to load stats.</p>}
                             </section>

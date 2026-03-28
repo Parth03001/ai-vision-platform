@@ -806,3 +806,20 @@
   white-space: nowrap;
 }
 .mtp-stop-btn:hover { background: rgba(239,68,68,0.12); }
+
+/* ── Split preview (before training) ── */
+.mtp-split-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 4px;
+  flex-wrap: wrap;
+}
+.mtp-split-preview-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
