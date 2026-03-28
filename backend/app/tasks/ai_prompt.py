@@ -169,30 +169,10 @@ def detect_with_prompt(self, project_id: str, image_id: str, prompt: str, clear_
 
     # 6. Save to DB
     with db.get_session() as conn:
-        # ── 6a. Register class if new ──────────────────────────────
-        proj_rows = db.execute_query(
-            conn, 
-            "SELECT classes FROM projects WHERE id = :id", 
-            {"id": project_id}
-        )
-        if proj_rows:
-            raw = proj_rows[0].get("classes")
-            current_classes = []
-            if isinstance(raw, str): current_classes = json.loads(raw)
-            elif isinstance(raw, list): current_classes = raw
-            
-            if prompt not in current_classes:
-                current_classes.append(prompt)
-                db.execute_update(
-                    conn,
-                    "UPDATE projects SET classes = CAST(:cls AS JSONB) WHERE id = :id",
-                    {"cls": json.dumps(current_classes), "id": project_id}
-                )
-
-        # ── 6b. Save annotations ──────────────────────────────────
+        # ── 6a. Save annotations with empty class (user will classify via UI) ──
         if clear_existing:
             db.execute_update(conn, "DELETE FROM annotations WHERE image_id = :id", {"id": image_id})
-        
+
         ann_rows = []
         for i in range(len(verified_boxes)):
             # Convert box to normalized xywh for platform consistency
@@ -203,15 +183,15 @@ def detect_with_prompt(self, project_id: str, image_id: str, prompt: str, clear_
             ny = ((box[1] + box[3]) / 2) / h
             nw = (box[2] - box[0]) / w
             nh = (box[3] - box[1]) / h
-            
+
             ann_rows.append({
                 "id": str(uuid.uuid4()),
                 "image_id": image_id,
-                "class_name": prompt,
+                "class_name": "",
                 "bbox": json.dumps([float(nx), float(ny), float(nw), float(nh)]),
                 "source": "ai_prompt"
             })
-        
+
         db.execute_many(
             conn,
             "INSERT INTO annotations (id, image_id, class_name, bbox, source) "

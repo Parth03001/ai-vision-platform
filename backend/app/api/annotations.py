@@ -6,6 +6,10 @@ from ..models.annotation import Annotation
 from ..models.image import Image
 from ..schemas.base import AnnotationCreate, AnnotationResponse
 from typing import List
+from pydantic import BaseModel
+
+class ClassifyBody(BaseModel):
+    class_name: str
 
 router = APIRouter(prefix="/annotations", tags=["annotations"])
 
@@ -33,6 +37,19 @@ async def create_annotation(data: AnnotationCreate, db: AsyncSession = Depends(g
 async def list_image_annotations(image_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Annotation).where(Annotation.image_id == image_id))
     return result.scalars().all()
+
+@router.patch("/{annotation_id}/classify", response_model=AnnotationResponse)
+async def classify_annotation(annotation_id: str, data: ClassifyBody, db: AsyncSession = Depends(get_db)):
+    """Assign a class name to an AI-detected annotation and promote it to manual."""
+    result = await db.execute(select(Annotation).where(Annotation.id == annotation_id))
+    ann = result.scalar_one_or_none()
+    if not ann:
+        raise HTTPException(status_code=404, detail="Annotation not found")
+    ann.class_name = data.class_name
+    ann.source = "manual"
+    await db.commit()
+    await db.refresh(ann)
+    return ann
 
 @router.patch("/{annotation_id}/verify")
 async def verify_annotation(annotation_id: str, db: AsyncSession = Depends(get_db)):

@@ -18,7 +18,7 @@ const KonvaImage = ({ src }) => {
 };
 
 // ── Class Picker ────────────────────────────────────────────────
-const ClassPicker = ({ classes, usedClasses, onConfirm, onCancel }) => {
+const ClassPicker = ({ classes, usedClasses, onConfirm, onCancel, remaining = 0 }) => {
     const [customClass, setCustomClass] = useState('');
     const inputRef = useRef(null);
 
@@ -41,7 +41,12 @@ const ClassPicker = ({ classes, usedClasses, onConfirm, onCancel }) => {
         <div className="class-picker-overlay" onClick={onCancel}>
             <div className="class-picker" onClick={e => e.stopPropagation()}>
                 <div className="class-picker-header">
-                    <span>Select Class</span>
+                    <span>
+                        Select Class
+                        {remaining > 0 && (
+                            <span className="class-picker-counter"> — {remaining} left</span>
+                        )}
+                    </span>
                     <button className="class-picker-close" onClick={onCancel}>✕</button>
                 </div>
 
@@ -133,6 +138,8 @@ const AnnotationWorkspace = ({ project, onProjectUpdated }) => {
     const [aiPrompt, setAiPrompt] = useState('');
     const [clearExisting, setClearExisting] = useState(false);
     const [isDetecting, setIsDetecting] = useState(false);
+    const [classifyingAnnId, setClassifyingAnnId] = useState(null); // id of AI ann being classified
+    const aiQueueRef = useRef([]); // queue of {id, bbox} waiting for ClassPicker
     const canvasAreaRef = useRef(null);
 
     const pollTask = useCallback((taskId, onComplete, onProgress) => {
@@ -157,21 +164,46 @@ const AnnotationWorkspace = ({ project, onProjectUpdated }) => {
         return interval;
     }, []);
 
+    // Open ClassPicker for the next AI annotation in the queue
+    const processNextAIAnnotation = useCallback((img) => {
+        const queue = aiQueueRef.current;
+        if (queue.length === 0) { setClassifyingAnnId(null); return; }
+        const next = queue.shift();
+        const image = img || currentImage;
+        if (!image) return;
+        const bx = (next.bbox[0] - next.bbox[2] / 2) * image.width;
+        const by = (next.bbox[1] - next.bbox[3] / 2) * image.height;
+        const bw = next.bbox[2] * image.width;
+        const bh = next.bbox[3] * image.height;
+        setClassifyingAnnId(next.id);
+        setPendingAnnotation({ x: bx, y: by, width: bw, height: bh });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentImage]);
+
     const handleAIDetect = async () => {
         if (!currentImage || !aiPrompt.trim()) return;
         setIsDetecting(true);
+        const img = currentImage;
         try {
             const res = await axios.post(`${API_URL}/pipeline/ai-prompt`, {
                 project_id: project.id,
-                image_id: currentImage.id,
+                image_id: img.id,
                 prompt: aiPrompt.trim(),
                 clear_existing: clearExisting
             });
             pollTask(res.data.task_id, (result) => {
                 setIsDetecting(false);
                 if (result.count > 0) {
-                    showStatus(`✓ Found ${result.count} ${aiPrompt}`);
-                    handleImageClick(currentImage); // Refresh annotations
+                    showStatus(`✓ Found ${result.count} object${result.count !== 1 ? 's' : ''} — assign classes below`);
+                    // Fetch fresh annotations then queue unclassified ones for ClassPicker
+                    axios.get(`${API_URL}/annotations/image/${img.id}`).then(r => {
+                        setAnnotations(r.data);
+                        const unclassified = r.data.filter(a => a.source === 'ai_prompt' && !a.class_name);
+                        if (unclassified.length > 0) {
+                            aiQueueRef.current = unclassified.map(a => ({ id: a.id, bbox: a.bbox }));
+                            processNextAIAnnotation(img);
+                        }
+                    });
                 } else {
                     showStatus("No objects found.");
                 }
@@ -286,12 +318,10 @@ Do you want to proceed?`;
         axios.get(`${API_URL}/annotations/image/${image.id}`)
             .then(res => {
                 setAnnotations(res.data);
-                // Merge any classes from this image into the workspace-wide used list
-                if (res.data.length > 0) {
-                    setAllUsedClasses(prev => {
-                        const combined = [...new Set([...prev, ...res.data.map(a => a.class_name)])];
-                        return combined;
-                    });
+                // Merge any classes from this image into the workspace-wide used list (skip empty)
+                const named = res.data.map(a => a.class_name).filter(Boolean);
+                if (named.length > 0) {
+                    setAllUsedClasses(prev => [...new Set([...prev, ...named])]);
                 }
             })
             .catch(() => setAnnotations([]));
@@ -392,37 +422,60 @@ Do you want to proceed?`;
 
     const handleClassConfirm = (className) => {
         const ann = pendingAnnotation;
+        const annId = classifyingAnnId;
         setPendingAnnotation(null);
         setNewAnnotation(null);
-        const bbox = [
-            (ann.x + ann.width / 2) / currentImage.width,
-            (ann.y + ann.height / 2) / currentImage.height,
-            ann.width / currentImage.width,
-            ann.height / currentImage.height,
-        ];
-        axios.post(`${API_URL}/annotations`, {
-            image_id: currentImage.id,
-            class_name: className,
-            bbox,
-        })
-            .then(res => {
-                setAnnotations(prev => [...prev, res.data]);
-                // Update status in sidebar without a network round-trip
-                setImages(prev => prev.map(img =>
-                    img.id === currentImage.id ? { ...img, status: 'annotated' } : img
-                ));
-                // Persist class name across image switches
-                setAllUsedClasses(prev =>
-                    prev.includes(className) ? prev : [...prev, className]
-                );
-                showStatus(`Annotation added: ${className}`);
+        setClassifyingAnnId(null);
+
+        if (annId) {
+            // Classifying an existing AI-detected annotation — PATCH it
+            axios.patch(`${API_URL}/annotations/${annId}/classify`, { class_name: className })
+                .then(res => {
+                    setAnnotations(prev => prev.map(a => a.id === annId ? res.data : a));
+                    setAllUsedClasses(prev => prev.includes(className) ? prev : [...prev, className]);
+                    showStatus(`Classified: ${className}`);
+                    processNextAIAnnotation();
+                })
+                .catch(() => {
+                    setError("Failed to save class.");
+                    processNextAIAnnotation();
+                });
+        } else {
+            // New drawn annotation — POST it
+            const bbox = [
+                (ann.x + ann.width / 2) / currentImage.width,
+                (ann.y + ann.height / 2) / currentImage.height,
+                ann.width / currentImage.width,
+                ann.height / currentImage.height,
+            ];
+            axios.post(`${API_URL}/annotations`, {
+                image_id: currentImage.id,
+                class_name: className,
+                bbox,
             })
-            .catch(() => setError("Failed to save annotation."));
+                .then(res => {
+                    setAnnotations(prev => [...prev, res.data]);
+                    setImages(prev => prev.map(img =>
+                        img.id === currentImage.id ? { ...img, status: 'annotated' } : img
+                    ));
+                    setAllUsedClasses(prev =>
+                        prev.includes(className) ? prev : [...prev, className]
+                    );
+                    showStatus(`Annotation added: ${className}`);
+                })
+                .catch(() => setError("Failed to save annotation."));
+        }
     };
 
     const handleClassCancel = () => {
+        const wasAI = !!classifyingAnnId;
         setPendingAnnotation(null);
         setNewAnnotation(null);
+        setClassifyingAnnId(null);
+        if (wasAI) {
+            // Skip this one, move to next in queue
+            processNextAIAnnotation();
+        }
     };
 
     // startSeedTraining replaced by TrainingPanel
@@ -638,8 +691,9 @@ Do you want to proceed?`;
                                         const by = (ann.bbox[1] - ann.bbox[3] / 2) * currentImage.height;
                                         const bw = ann.bbox[2] * currentImage.width;
                                         const bh = ann.bbox[3] * currentImage.height;
-                                        // manual = rose red, auto = violet
-                                        const color = ann.source === 'auto' ? '#a78bfa' : '#f43f5e';
+                                        const unclassified = ann.source === 'ai_prompt' && !ann.class_name;
+                                        // manual = rose red, auto = violet, unclassified = amber
+                                        const color = unclassified ? '#f59e0b' : ann.source === 'auto' ? '#a78bfa' : '#f43f5e';
                                         const fontSize = Math.max(10, 13 / scale);
                                         const padX = 4 / scale;
                                         const padY = 2 / scale;
@@ -650,14 +704,17 @@ Do you want to proceed?`;
                                                     x={bx} y={by} width={bw} height={bh}
                                                     stroke={color}
                                                     strokeWidth={1.5 / scale}
-                                                    fill={ann.source === 'auto'
-                                                        ? 'rgba(167,139,250,0.07)'
-                                                        : 'rgba(244,63,94,0.07)'}
+                                                    fill={unclassified
+                                                        ? 'rgba(245,158,11,0.10)'
+                                                        : ann.source === 'auto'
+                                                            ? 'rgba(167,139,250,0.07)'
+                                                            : 'rgba(244,63,94,0.07)'}
+                                                    dash={unclassified ? [6 / scale, 3 / scale] : undefined}
                                                 />
                                                 {/* Label background */}
                                                 <Rect
                                                     x={bx} y={by - labelH}
-                                                    width={Math.min(bw, (ann.class_name.length * fontSize * 0.6) + padX * 2 + (ann.source === 'auto' ? 30/scale : 0))}
+                                                    width={Math.min(bw, ((unclassified ? 12 : ann.class_name.length) * fontSize * 0.6) + padX * 2 + 30/scale)}
                                                     height={labelH}
                                                     fill={color}
                                                     cornerRadius={2 / scale}
@@ -665,7 +722,7 @@ Do you want to proceed?`;
                                                 <Text
                                                     x={bx + padX}
                                                     y={by - labelH + padY}
-                                                    text={`${ann.class_name}${ann.source === 'auto' ? ' ✦' : ''}`}
+                                                    text={unclassified ? '? unclassified' : `${ann.class_name}${ann.source === 'auto' ? ' ✦' : ''}`}
                                                     fontSize={fontSize}
                                                     fontFamily="sans-serif"
                                                     fill="#fff"
@@ -749,6 +806,7 @@ Do you want to proceed?`;
                                     usedClasses={allUsedClasses}
                                     onConfirm={handleClassConfirm}
                                     onCancel={handleClassCancel}
+                                    remaining={classifyingAnnId ? aiQueueRef.current.length + 1 : 0}
                                 />
                             )}
                         </div>
