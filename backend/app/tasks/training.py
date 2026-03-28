@@ -463,9 +463,8 @@ def train_seed_model(
         lrf=0.01,            # final lr = lr0 * lrf
         cos_lr=True,         # cosine LR schedule — smoother convergence on small datasets
         warmup_epochs=3,
-        weight_decay=0.0005,
-        patience=20,         # early stopping — model converges fast on small datasets
         weight_decay=0.001,  # stronger L2 regularisation to reduce overfitting
+        patience=20,         # early stopping — model converges fast on small datasets
         label_smoothing=0.1, # reduces overconfidence on small datasets
         # --- augmentation (tuned for bright-feature inspection) -----------
         # Key insight: the OK/NOT-OK signal is the *visibility of the white
@@ -603,9 +602,8 @@ def train_main_model(
         lrf=0.01,            # final lr = lr0 * lrf
         cos_lr=True,         # cosine LR schedule
         warmup_epochs=3,
-        weight_decay=0.0005,
-        patience=20,         # early stopping — stop when mAP stops improving
         weight_decay=0.001,  # stronger L2 regularisation
+        patience=20,         # early stopping — stop when mAP stops improving
         label_smoothing=0.05,
         # --- augmentation (same conservative tuning as seed) ---------------
         hsv_h=0.015,
