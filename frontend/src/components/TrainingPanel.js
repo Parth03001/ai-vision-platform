@@ -187,7 +187,7 @@ const TrainingPanel = ({ project, onClose }) => {
     const [launching, setLaunching]     = useState(false);
     const [view, setView]               = useState('detail');
     const [selectedModel, setSelectedModel] = useState(DEFAULT_SEED_MODEL);
-    const [epochs, setEpochs]           = useState(100);
+    const [epochs, setEpochs]           = useState(40);
     const [imgsz, setImgsz]             = useState(640);
     const [batch, setBatch]             = useState(-1);
     const [preprocess, setPreprocess]   = useState(true);

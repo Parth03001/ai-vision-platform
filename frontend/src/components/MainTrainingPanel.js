@@ -189,7 +189,7 @@ const MainTrainingPanel = ({ project, onClose }) => {
 
     // Config state
     const [selectedModel, setSelectedModel]     = useState(DEFAULT_MAIN_MODEL);
-    const [epochs, setEpochs]                   = useState(150);
+    const [epochs, setEpochs]                   = useState(60);
     const [useSeedWeights, setUseSeedWeights]   = useState(true);
     const [imgsz, setImgsz]                     = useState(640);
     const [batch, setBatch]                     = useState(-1);

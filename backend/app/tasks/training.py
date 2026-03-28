@@ -399,7 +399,7 @@ def train_seed_model(
     self,
     project_id: str,
     model_name: str = "yolo11s.pt",
-    epochs: int = 100,
+    epochs: int = 40,
     imgsz: int = 640,
     preprocess: bool = True,
     batch: int = -1,
@@ -464,7 +464,8 @@ def train_seed_model(
         cos_lr=True,         # cosine LR schedule — smoother convergence on small datasets
         warmup_epochs=3,
         weight_decay=0.0005,
-        patience=30,         # early stopping
+        patience=20,         # early stopping — model converges fast on small datasets
+        weight_decay=0.001,  # stronger L2 regularisation to reduce overfitting
         label_smoothing=0.1, # reduces overconfidence on small datasets
         # --- augmentation (tuned for bright-feature inspection) -----------
         # Key insight: the OK/NOT-OK signal is the *visibility of the white
@@ -517,7 +518,7 @@ def train_main_model(
     self,
     project_id: str,
     model_name: str = "yolo11s.pt",
-    epochs: int = 150,
+    epochs: int = 60,
     use_seed_weights: bool = True,
     imgsz: int = 640,
     preprocess: bool = True,
@@ -603,7 +604,8 @@ def train_main_model(
         cos_lr=True,         # cosine LR schedule
         warmup_epochs=3,
         weight_decay=0.0005,
-        patience=40,         # early stopping
+        patience=20,         # early stopping — stop when mAP stops improving
+        weight_decay=0.001,  # stronger L2 regularisation
         label_smoothing=0.05,
         # --- augmentation (same conservative tuning as seed) ---------------
         hsv_h=0.015,
@@ -615,9 +617,9 @@ def train_main_model(
         fliplr=0.5,
         flipud=0.1,
         mosaic=0.5,          # reduced — avoid mixing OK+NOT-OK contexts
-        close_mosaic=20,     # disable mosaic for last 20 epochs to stabilise
+        close_mosaic=10,     # disable mosaic for last 10 epochs to stabilise
         mixup=0.0,           # disabled — pixel blending corrupts binary signal
-        copy_paste=0.05,
+        copy_paste=0.1,      # increased — synthesises extra instances on small datasets
         # ------------------------------------------------------------------
         project=str(settings.model_dir / project_id),
         name="main_model",
