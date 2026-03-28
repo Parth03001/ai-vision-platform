@@ -116,6 +116,31 @@ const MapChart = ({ history }) => {
     );
 };
 
+// ── PreprocessingProgress ──────────────────────────────
+const PreprocessingProgress = ({ meta }) => {
+    if (!meta || meta.phase !== 'preprocessing') return null;
+    const { current = 0, total = 0, split = '', pct = 0 } = meta;
+    const splitLabel = { train: 'train', val: 'validation', test: 'test' }[split] || split;
+    return (
+        <div className="epoch-progress">
+            <div className="epoch-progress-header">
+                <span className="epoch-label">
+                    ⚡ Preprocessing
+                    {splitLabel && <span style={{ color: '#64748b', fontWeight: 400 }}> — {splitLabel} set</span>}
+                </span>
+                <span className="epoch-eta" style={{ color: '#a78bfa' }}>{current} / {total} images</span>
+                <span className="epoch-pct">{pct}%</span>
+            </div>
+            <div className="epoch-bar">
+                <div className="epoch-bar-fill" style={{ width: `${pct}%`, background: 'linear-gradient(90deg,#7c3aed,#a78bfa)' }} />
+            </div>
+            <p style={{ fontSize: 10, color: '#475569', marginTop: 4 }}>
+                Applying CLAHE contrast enhancement to training images…
+            </p>
+        </div>
+    );
+};
+
 // ── EpochProgress ──────────────────────────────────────
 const EpochProgress = ({ meta }) => {
     if (!meta || meta.epoch == null) return null;
@@ -311,13 +336,25 @@ const TrainingPanel = ({ project, onClose }) => {
 
                     if (status === 'STARTED') {
                         pendingTicks = 0;
-                        const last = newLogs[newLogs.length - 1];
-                        if (last !== '⚙️  Training in progress…')
-                            newLogs = [...newLogs, '⚙️  Training in progress…'];
-                        // Persist 'started' status once
                         if (!startedPersisted) {
                             startedPersisted = true;
                             axios.patch(`${API_URL}/pipeline/jobs/${taskId}`, { status: 'started' }).catch(() => {});
+                        }
+                        const phase = meta?.phase;
+                        if (phase === 'preprocessing') {
+                            const pct = meta.pct ?? 0;
+                            const msg = `⚡  Preprocessing images… ${pct}% (${meta.current ?? 0}/${meta.total ?? 0})`;
+                            const last = newLogs[newLogs.length - 1];
+                            newLogs = last?.startsWith('⚡')
+                                ? [...newLogs.slice(0, -1), msg]
+                                : [...newLogs, '⚡  Starting CLAHE preprocessing…', msg];
+                        } else {
+                            const last = newLogs[newLogs.length - 1];
+                            const wasPreprocessing = last?.startsWith('⚡');
+                            if (wasPreprocessing)
+                                newLogs = [...newLogs, '✔  Preprocessing done — starting training…'];
+                            else if (last !== '⚙️  Training in progress…')
+                                newLogs = [...newLogs, '⚙️  Training in progress…'];
                         }
                         return { ...j, status: 'STARTED', logs: newLogs, epochMeta: meta || j.epochMeta };
                     }
@@ -734,6 +771,11 @@ const TrainingPanel = ({ project, onClose }) => {
                                             <div className="tp-info" style={{ marginBottom: 12 }}>
                                                 ⏳ Queued — will start when a slot opens (max {MAX_PARALLEL} parallel).
                                             </div>
+                                        )}
+
+                                        {/* ── Preprocessing Progress ── */}
+                                        {activeJob.status === 'STARTED' && (
+                                            <PreprocessingProgress meta={activeJob.epochMeta} />
                                         )}
 
                                         {/* ── Epoch Progress ── */}

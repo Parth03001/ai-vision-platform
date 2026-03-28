@@ -228,12 +228,13 @@ def _split_images(img_rows, train_ratio=0.8, val_ratio=0.15, seed=42,
 
 
 def _write_split(dataset_path, split_name, split_imgs, anns_by_image, classes,
-                 preprocess: bool = True):
+                 preprocess: bool = True,
+                 task=None, progress_offset: int = 0, progress_total: int = 0):
     """Copy (and optionally CLAHE-enhance) images and write label files for one split."""
     (dataset_path / "images" / split_name).mkdir(parents=True, exist_ok=True)
     (dataset_path / "labels" / split_name).mkdir(parents=True, exist_ok=True)
 
-    for img in split_imgs:
+    for idx, img in enumerate(split_imgs):
         real_path = Path(".") / img["filepath"].lstrip("/")
         if not real_path.exists():
             real_path = settings.upload_dir.parent / Path(img["filepath"].lstrip("/"))
@@ -245,6 +246,23 @@ def _write_split(dataset_path, split_name, split_imgs, anns_by_image, classes,
             _preprocess_for_inspection(real_path, dest_path)
         else:
             shutil.copy(real_path, dest_path)
+
+        # Push preprocessing progress every 5 images (throttled to avoid Redis flood)
+        if task and preprocess and progress_total > 0 and (idx + 1) % 5 == 0:
+            current = progress_offset + idx + 1
+            try:
+                task.update_state(
+                    state="STARTED",
+                    meta={
+                        "phase": "preprocessing",
+                        "current": current,
+                        "total": progress_total,
+                        "split": split_name,
+                        "pct": round(current / progress_total * 100),
+                    },
+                )
+            except Exception:
+                pass
 
         label_file = (
             dataset_path / "labels" / split_name
@@ -259,7 +277,7 @@ def _write_split(dataset_path, split_name, split_imgs, anns_by_image, classes,
 
 
 def _build_yolo_dataset(img_rows, anns_by_image, classes, project_id,
-                        train_ratio=0.8, val_ratio=0.15, preprocess=True):
+                        train_ratio=0.8, val_ratio=0.15, preprocess=True, task=None):
     """
     Build a YOLO dataset directory with proper train / val / test splits.
 
@@ -280,10 +298,28 @@ def _build_yolo_dataset(img_rows, anns_by_image, classes, project_id,
         anns_by_image=anns_by_image,
     )
 
-    _write_split(dataset_path, "train", train_imgs, anns_by_image, classes, preprocess=preprocess)
-    _write_split(dataset_path, "val",   val_imgs,   anns_by_image, classes, preprocess=preprocess)
+    total = len(train_imgs) + len(val_imgs) + len(test_imgs)
+
+    # Announce preprocessing start so the UI shows phase immediately
+    if task and preprocess and total > 0:
+        try:
+            task.update_state(
+                state="STARTED",
+                meta={"phase": "preprocessing", "current": 0, "total": total, "split": "train", "pct": 0},
+            )
+        except Exception:
+            pass
+
+    _write_split(dataset_path, "train", train_imgs, anns_by_image, classes,
+                 preprocess=preprocess, task=task,
+                 progress_offset=0, progress_total=total)
+    _write_split(dataset_path, "val",   val_imgs,   anns_by_image, classes,
+                 preprocess=preprocess, task=task,
+                 progress_offset=len(train_imgs), progress_total=total)
     if test_imgs:
-        _write_split(dataset_path, "test", test_imgs, anns_by_image, classes, preprocess=preprocess)
+        _write_split(dataset_path, "test", test_imgs, anns_by_image, classes,
+                     preprocess=preprocess, task=task,
+                     progress_offset=len(train_imgs) + len(val_imgs), progress_total=total)
 
     data_yaml: dict = {
         "path":  str(dataset_path.absolute()),
@@ -395,7 +431,8 @@ def train_seed_model(
 
     # ── Phase 2: Build dataset ───────────────────────────────────
     dataset_path, n_train, n_val, n_test = _build_yolo_dataset(
-        img_rows, anns_by_image, classes, project_id, preprocess=preprocess
+        img_rows, anns_by_image, classes, project_id,
+        preprocess=preprocess, task=self,
     )
 
     # ── Phase 3: Train ───────────────────────────────────────────
@@ -521,7 +558,8 @@ def train_main_model(
 
     # ── Phase 2: Build dataset ───────────────────────────────────
     dataset_path, n_train, n_val, n_test = _build_yolo_dataset(
-        img_rows, anns_by_image, classes, f"{project_id}_main", preprocess=preprocess
+        img_rows, anns_by_image, classes, f"{project_id}_main",
+        preprocess=preprocess, task=self,
     )
 
     # ── Phase 3: Train ───────────────────────────────────────────
