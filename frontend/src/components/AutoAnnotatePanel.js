@@ -339,6 +339,24 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
         }, POLL_INTERVAL);
     }, [loadSetup, onAnnotationsUpdated]);
 
+    // ── Stop running job ─────────────────────────────────────────
+    const handleStop = async () => {
+        const job = jobs.find(j => j.status === 'PENDING' || j.status === 'STARTED');
+        if (!job?.taskId) return;
+        try {
+            await axios.post(`${API_URL}/pipeline/cancel/${job.taskId}`);
+        } catch { /* ignore */ }
+        if (pollRef.current[job.taskId]) {
+            clearInterval(pollRef.current[job.taskId]);
+            delete pollRef.current[job.taskId];
+        }
+        setJobs(prev => prev.map(j =>
+            j.taskId === job.taskId
+                ? { ...j, status: 'FAILURE', logs: [...j.logs, '🛑  Stopped by user.'] }
+                : j
+        ));
+    };
+
     // ── Launch job ────────────────────────────────────────────
     const handleStart = async () => {
         if (!modelStatus?.has_seed_model) return;
@@ -628,6 +646,11 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
                     ) : (
                         <button className="aap-start-btn aap-start-btn--secondary" onClick={() => { setView('setup'); loadSetup(); }}>
                             ← Back to Setup
+                        </button>
+                    )}
+                    {anyRunning && (
+                        <button className="aap-stop-btn" onClick={handleStop} title="Stop annotation">
+                            ⏹ Stop
                         </button>
                     )}
                 </div>

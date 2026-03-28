@@ -31,6 +31,7 @@ const STATUS_LABEL = {
     STARTED:   { label: 'Running',   cls: 'badge--running' },
     SUCCESS:   { label: 'Done',      cls: 'badge--done'    },
     FAILURE:   { label: 'Failed',    cls: 'badge--fail'    },
+    REVOKED:   { label: 'Stopped',   cls: 'badge--fail'    },
     NO_WORKER: { label: 'No Worker', cls: 'badge--fail'    },
 };
 
@@ -445,6 +446,24 @@ const MainTrainingPanel = ({ project, onClose }) => {
             ));
         }
     }, [startPolling]);
+
+    // ── Stop running job ───────────────────────────────────────────
+    const handleStop = async () => {
+        const job = activeJob || jobs.find(j => j.status === 'PENDING' || j.status === 'STARTED');
+        if (!job?.taskId) return;
+        try {
+            await axios.post(`${API_URL}/pipeline/cancel/${job.taskId}`);
+        } catch { /* ignore network errors */ }
+        if (pollRef.current[job.taskId]) {
+            clearInterval(pollRef.current[job.taskId]);
+            delete pollRef.current[job.taskId];
+        }
+        setJobs(prev => prev.map(j =>
+            j.taskId === job.taskId
+                ? { ...j, status: 'REVOKED', logs: [...j.logs, '🛑  Stopped by user.'] }
+                : j
+        ));
+    };
 
     // ── Launch ─────────────────────────────────────────────────────
     const handleTrain = async () => {
@@ -938,6 +957,11 @@ const MainTrainingPanel = ({ project, onClose }) => {
                     >
                         {btnLabel()}
                     </button>
+                    {anyRunning && (
+                        <button className="mtp-stop-btn" onClick={handleStop} title="Stop training">
+                            ⏹ Stop
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

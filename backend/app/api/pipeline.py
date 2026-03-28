@@ -458,6 +458,37 @@ async def get_training_stats(project_id: str, db: AsyncSession = Depends(get_db)
     }
 
 
+# ── Cancel task ───────────────────────────────────────────────────
+
+@router.post("/cancel/{task_id}")
+async def cancel_task(task_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Revoke a Celery task and mark the DB job record as stopped.
+
+    Uses terminate=True + SIGTERM so a running worker process actually
+    stops mid-work rather than just being flagged for skipping on next
+    pickup.
+    """
+    celery_app.control.revoke(task_id, terminate=True, signal="SIGTERM")
+
+    # Best-effort DB update — job may not exist yet if cancel races the create
+    try:
+        result = await db.execute(select(TrainingJob).where(TrainingJob.id == task_id))
+        job = result.scalar_one_or_none()
+        if job:
+            job.status = "failure"
+            job.result_meta = _sanitize_meta({
+                **(job.result_meta or {}),
+                "error": "Stopped by user",
+            })
+            job.finished_at = datetime.utcnow()
+            await db.commit()
+    except Exception:
+        pass
+
+    return {"task_id": task_id, "status": "revoked"}
+
+
 # ── Task status ───────────────────────────────────────────────────
 
 @router.get("/task-status/{task_id}")
