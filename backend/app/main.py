@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from .database import init_db
-from .api import projects, images, annotations, pipeline, auth
+from .api import projects, images, annotations, pipeline, auth, videos
 from .config import settings
 
 @asynccontextmanager
@@ -26,6 +26,7 @@ app.include_router(projects.router, prefix="/api/v1")
 app.include_router(images.router, prefix="/api/v1")
 app.include_router(annotations.router, prefix="/api/v1")
 app.include_router(pipeline.router, prefix="/api/v1")
+app.include_router(videos.router, prefix="/api/v1")
 
 app.mount("/uploads", StaticFiles(directory=str(settings.upload_dir)), name="uploads")
 

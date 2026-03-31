@@ -14,3 +14,4 @@ class Project(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
     images = relationship("Image", back_populates="project", cascade="all, delete-orphan")
+    videos = relationship("Video", back_populates="project", cascade="all, delete-orphan")

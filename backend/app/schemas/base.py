@@ -79,3 +79,30 @@ class AnnotationResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ── Video schemas ───────────────────────────────────────────────────
+class VideoResponse(BaseModel):
+    id: str
+    project_id: str
+    original_filename: str
+    filepath: str
+    file_size: int
+    duration: Optional[float]
+    fps: Optional[float]
+    width: Optional[int]
+    height: Optional[int]
+    total_frames: Optional[int]
+    status: str
+    frames_extracted: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class VideoFrameExtractionRequest(BaseModel):
+    # Extract 1 frame every `sample_every_n` frames (e.g. 30 = 1 fps at 30fps video)
+    sample_every_n: int = Field(default=30, ge=1, le=3000)
+    # Hard cap on total frames extracted (0 = no limit)
+    max_frames: int = Field(default=300, ge=0, le=10000)

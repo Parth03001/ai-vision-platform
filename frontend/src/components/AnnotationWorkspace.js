@@ -8,6 +8,7 @@ import MainTrainingPanel from './MainTrainingPanel';
 import LabelsPanel from './LabelsPanel';
 import ModelsPanel from './ModelsPanel';
 import ReviewPanel from './ReviewPanel';
+import VideoPanel from './VideoPanel';
 import './AnnotationWorkspace.css';
 
 const API_URL = "http://localhost:8000/api/v1";
@@ -133,6 +134,7 @@ const AnnotationWorkspace = ({ project, onProjectUpdated }) => {
     const [showLabelsPanel, setShowLabelsPanel] = useState(false);
     const [showModelsPanel, setShowModelsPanel] = useState(false);
     const [showReviewPanel, setShowReviewPanel] = useState(false);
+    const [showVideoPanel, setShowVideoPanel] = useState(false);
     // Local copy of classes so edits from LabelsPanel are reflected instantly
     const [localClasses, setLocalClasses] = useState(project.classes || []);
     const [aiPrompt, setAiPrompt] = useState('');
@@ -538,6 +540,9 @@ Do you want to proceed?`;
 
                 <div className="sidebar-section">
                     <p className="sidebar-label">Images ({images.length})</p>
+                    <button className="btn-action btn-action-video" onClick={() => setShowVideoPanel(true)}>
+                        🎬 Import Video
+                    </button>
                     <label className={`upload-btn ${uploading ? 'uploading' : ''}`}>
                         {uploading
                             ? `Uploading ${uploadFileCount} file${uploadFileCount !== 1 ? 's' : ''}…`
@@ -921,6 +926,18 @@ Do you want to proceed?`;
                     onGoToTrain={(type) => {
                         if (type === 'seed') setShowTrainingPanel(true);
                         else setShowMainTrainingPanel(true);
+                    }}
+                />
+            )}
+            {showVideoPanel && (
+                <VideoPanel
+                    project={project}
+                    onClose={() => setShowVideoPanel(false)}
+                    onFramesExtracted={() => {
+                        // Refresh image list so extracted frames appear
+                        axios.get(`${API_URL}/images/project/${project.id}`)
+                            .then(res => setImages(res.data))
+                            .catch(() => {});
                     }}
                 />
             )}

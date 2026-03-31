@@ -253,3 +253,43 @@ training_jobs_table = create_dynamic_table(
     ),
     Index("ix_training_jobs_project_status", "project_id", "status"),
 )
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Table: videos
+# Stores uploaded video files and frame-extraction metadata.
+# Extracted frames are stored as regular Image rows linked by video_id.
+# ─────────────────────────────────────────────────────────────────────────────
+videos_table = create_dynamic_table(
+    "videos",
+    Column("id", String(36), primary_key=True, default=lambda: str(uuid.uuid4())),
+    Column(
+        "project_id",
+        String(36),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    ),
+    Column("original_filename", String(512), nullable=False),
+    Column("filepath", String(1024), nullable=False),
+    Column("file_size", BigInteger, nullable=False, server_default=text("0")),
+    Column("duration", Float, nullable=True, comment="Video duration in seconds"),
+    Column("fps", Float, nullable=True),
+    Column("width", Integer, nullable=True),
+    Column("height", Integer, nullable=True),
+    Column("total_frames", Integer, nullable=True),
+    Column(
+        "status",
+        String(50),
+        nullable=False,
+        server_default=text("'uploaded'"),
+        comment="uploaded | extracting | done | failed",
+    ),
+    Column("frames_extracted", Integer, nullable=False, server_default=text("0")),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    ),
+    Index("ix_videos_project_id", "project_id"),
+)
