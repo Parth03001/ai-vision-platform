@@ -54,3 +54,20 @@ async def upload_images(
 async def list_project_images(project_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Image).where(Image.project_id == project_id))
     return result.scalars().all()
+
+
+@router.patch("/{image_id}/mark-empty", response_model=ImageResponse)
+async def mark_image_empty(image_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Mark an image as annotated with no objects (negative/background frame).
+    The image status is set to 'annotated' with zero annotation rows.
+    YOLO training will generate an empty label file for it, which is valid
+    and teaches the model to suppress false positives on blank frames.
+    """
+    image = await db.get(Image, image_id)
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+    image.status = "annotated"
+    await db.commit()
+    await db.refresh(image)
+    return image

@@ -288,6 +288,25 @@ Do you want to proceed?`;
         }
     };
 
+    const handleMarkEmpty = async () => {
+        if (!currentImage) return;
+        try {
+            await axios.patch(`${API_URL}/images/${currentImage.id}/mark-empty`);
+            // Update sidebar status
+            setImages(prev => prev.map(img =>
+                img.id === currentImage.id ? { ...img, status: 'annotated' } : img
+            ));
+            showStatus('Marked as no objects — frame skipped.');
+            // Auto-advance to next pending image
+            const nextPending = images.find(
+                img => img.id !== currentImage.id && img.status === 'pending'
+            );
+            if (nextPending) handleImageClick(nextPending);
+        } catch {
+            setError('Failed to mark image as empty.');
+        }
+    };
+
     const fileInputRef = useRef(null);
 
     useEffect(() => {
@@ -635,6 +654,15 @@ Do you want to proceed?`;
                             <span className="canvas-ann-count">
                                 {annotations.length} annotation{annotations.length !== 1 ? 's' : ''}
                             </span>
+                            {annotations.length === 0 && (
+                                <button
+                                    className="btn-no-objects"
+                                    onClick={handleMarkEmpty}
+                                    title="No objects in this frame — mark as done and advance to next image"
+                                >
+                                    ✓ No Objects
+                                </button>
+                            )}
                         </div>
 
                         {/* ── AI Prompt Bar (Below Toolbar) ── */}
