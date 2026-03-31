@@ -311,6 +311,7 @@
   background: rgba(245, 158, 11, 0.08);
   color: #fcd34d;
   border: 1px solid rgba(245, 158, 11, 0.22);
+  margin-bottom: 8px;
 }
 
 .btn-action-video:hover:not(:disabled) {
