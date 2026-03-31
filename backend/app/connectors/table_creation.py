@@ -291,5 +291,4 @@ videos_table = create_dynamic_table(
         nullable=False,
         server_default=func.now(),
     ),
-    Index("ix_videos_project_id", "project_id"),
 )
