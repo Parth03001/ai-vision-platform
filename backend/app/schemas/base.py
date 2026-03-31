@@ -95,6 +95,7 @@ class VideoResponse(BaseModel):
     total_frames: Optional[int]
     status: str
     frames_extracted: int
+    task_id: Optional[str]
     created_at: datetime
 
     class Config:

@@ -285,6 +285,7 @@ videos_table = create_dynamic_table(
         comment="uploaded | extracting | done | failed",
     ),
     Column("frames_extracted", Integer, nullable=False, server_default=text("0")),
+    Column("task_id", String(36), nullable=True, comment="Celery task ID while extracting"),
     Column(
         "created_at",
         DateTime(timezone=True),

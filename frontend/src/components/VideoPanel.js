@@ -24,6 +24,7 @@ function StatusBadge({ status }) {
         extracting: { label: 'Extracting…', cls: 'vp-badge vp-badge--extracting' },
         done:       { label: 'Done',         cls: 'vp-badge vp-badge--done' },
         failed:     { label: 'Failed',       cls: 'vp-badge vp-badge--failed' },
+        stopped:    { label: 'Stopped',      cls: 'vp-badge vp-badge--stopped' },
     };
     const { label, cls } = map[status] || { label: status, cls: 'vp-badge' };
     return <span className={cls}>{label}</span>;
@@ -139,6 +140,18 @@ export default function VideoPanel({ project, onClose, onFramesExtracted }) {
         }
     };
 
+    // ── Stop extraction ────────────────────────────────────────────
+    const handleStop = async (videoId) => {
+        setError(null);
+        try {
+            const res = await axios.post(`${API_URL}/videos/${videoId}/stop-extraction`);
+            setVideos(prev => prev.map(v => v.id === videoId ? res.data : v));
+            showSuccess('Extraction stopped. Frames extracted so far are kept in the image list.');
+        } catch (err) {
+            setError(err.response?.data?.detail || 'Failed to stop extraction.');
+        }
+    };
+
     // ── Delete video ───────────────────────────────────────────────
     const handleDelete = async (videoId) => {
         if (!window.confirm('Delete this video and all its extracted frames?')) return;
@@ -243,6 +256,7 @@ export default function VideoPanel({ project, onClose, onFramesExtracted }) {
                                 const cfg = extractConfig[video.id] || {};
                                 const isExtracting = video.status === 'extracting';
                                 const isDone       = video.status === 'done';
+                                const isStopped    = video.status === 'stopped';
 
                                 return (
                                     <div key={video.id} className="vp-card">
@@ -270,17 +284,26 @@ export default function VideoPanel({ project, onClose, onFramesExtracted }) {
                                             </div>
                                         </div>
 
-                                        {/* Extraction progress bar */}
+                                        {/* Extraction progress bar + stop button */}
                                         {isExtracting && (
                                             <div className="vp-extraction-progress">
                                                 <div className="vp-extraction-bar">
                                                     <div className="vp-extraction-fill vp-extraction-fill--animated" />
                                                 </div>
-                                                <span className="vp-extraction-label">
-                                                    {video.frames_extracted > 0
-                                                        ? `${video.frames_extracted} frames extracted so far…`
-                                                        : 'Starting extraction…'}
-                                                </span>
+                                                <div className="vp-extraction-footer">
+                                                    <span className="vp-extraction-label">
+                                                        {video.frames_extracted > 0
+                                                            ? `${video.frames_extracted} frames extracted so far…`
+                                                            : 'Starting extraction…'}
+                                                    </span>
+                                                    <button
+                                                        className="vp-btn-stop"
+                                                        onClick={() => handleStop(video.id)}
+                                                        title="Stop extraction and keep frames extracted so far"
+                                                    >
+                                                        ⬛ Stop
+                                                    </button>
+                                                </div>
                                             </div>
                                         )}
 
@@ -288,6 +311,13 @@ export default function VideoPanel({ project, onClose, onFramesExtracted }) {
                                         {isDone && (
                                             <div className="vp-done-summary">
                                                 ✓ {video.frames_extracted} frames extracted and added to the image list
+                                            </div>
+                                        )}
+
+                                        {/* Stopped summary */}
+                                        {isStopped && (
+                                            <div className="vp-stopped-summary">
+                                                ⬛ Stopped — {video.frames_extracted} frame{video.frames_extracted !== 1 ? 's' : ''} kept. Adjust settings and re-extract if needed.
                                             </div>
                                         )}
 
@@ -324,7 +354,7 @@ export default function VideoPanel({ project, onClose, onFramesExtracted }) {
                                                     className="vp-btn-extract"
                                                     onClick={() => handleExtract(video)}
                                                 >
-                                                    {isDone ? '↺ Re-extract Frames' : '▶ Extract Frames'}
+                                                    {(isDone || isStopped) ? '↺ Re-extract Frames' : '▶ Extract Frames'}
                                                 </button>
                                             </div>
                                         )}

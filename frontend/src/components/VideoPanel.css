@@ -255,6 +255,7 @@
 .vp-badge--extracting { background: #201a0a; color: #fcd34d; border: 1px solid #92400e; }
 .vp-badge--done       { background: #061510; color: #86efac; border: 1px solid #166534; }
 .vp-badge--failed     { background: #1f0c0c; color: #fca5a5; border: 1px solid #7f1d1d; }
+.vp-badge--stopped    { background: #1a1a1a; color: #94a3b8; border: 1px solid #334155; }
 
 /* ── Delete button ───────────────────────────────────── */
 .vp-btn-delete {
@@ -289,7 +290,33 @@
   0%   { transform: translateX(-150%); }
   100% { transform: translateX(400%); }
 }
+
+.vp-extraction-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
 .vp-extraction-label { font-size: 12px; color: #fcd34d; }
+
+/* ── Stop button ─────────────────────────────────────── */
+.vp-btn-stop {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 6px;
+  color: #f87171;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+.vp-btn-stop:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #ef4444;
+}
 
 /* ── Done summary ────────────────────────────────────── */
 .vp-done-summary {
@@ -297,6 +324,16 @@
   color: #86efac;
   background: #061510;
   border: 1px solid #14532d;
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+/* ── Stopped summary ─────────────────────────────────── */
+.vp-stopped-summary {
+  font-size: 12px;
+  color: #94a3b8;
+  background: #111318;
+  border: 1px solid #334155;
   border-radius: 6px;
   padding: 8px 12px;
 }

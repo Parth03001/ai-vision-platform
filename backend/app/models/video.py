@@ -18,9 +18,10 @@ class Video(Base):
     width: Mapped[int] = mapped_column(Integer, nullable=True)
     height: Mapped[int] = mapped_column(Integer, nullable=True)
     total_frames: Mapped[int] = mapped_column(Integer, nullable=True)
-    # uploaded | extracting | done | failed
+    # uploaded | extracting | stopped | done | failed
     status: Mapped[str] = mapped_column(String(50), default="uploaded")
     frames_extracted: Mapped[int] = mapped_column(Integer, default=0)
+    task_id: Mapped[str] = mapped_column(String(36), nullable=True)  # Celery task ID
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     project = relationship("Project", back_populates="videos")

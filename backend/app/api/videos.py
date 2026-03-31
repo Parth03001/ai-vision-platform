@@ -117,7 +117,7 @@ async def extract_frames(
     # Import here to avoid circular imports at module load
     from ..tasks.video_processing import extract_video_frames
 
-    extract_video_frames.delay(
+    task = extract_video_frames.delay(
         video_id,
         sample_every_n=body.sample_every_n,
         max_frames=body.max_frames,
@@ -125,6 +125,32 @@ async def extract_frames(
 
     video.status = "extracting"
     video.frames_extracted = 0
+    video.task_id = task.id
+    await db.commit()
+    await db.refresh(video)
+    return video
+
+
+@router.post("/{video_id}/stop-extraction", response_model=VideoResponse)
+async def stop_extraction(video_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Cancel a running frame-extraction task.
+    Revokes the Celery task and resets the video status to 'stopped'
+    so the user can re-configure and re-extract.
+    """
+    video = await db.get(Video, video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    if video.status != "extracting":
+        raise HTTPException(status_code=409, detail="No extraction in progress")
+
+    if video.task_id:
+        from ..tasks.celery_app import celery_app
+        celery_app.control.revoke(video.task_id, terminate=True, signal="SIGTERM")
+
+    video.status = "stopped"
+    video.task_id = None
     await db.commit()
     await db.refresh(video)
     return video
