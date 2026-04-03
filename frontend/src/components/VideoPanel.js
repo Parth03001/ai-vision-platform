@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import './VideoPanel.css';
 
-const API_URL = "http://localhost:8000/api/v1";
+import { API_URL } from '../config';
 const POLL_INTERVAL = 2500;
 
 function formatDuration(seconds) {

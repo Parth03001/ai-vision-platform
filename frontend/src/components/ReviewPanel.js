@@ -4,8 +4,7 @@ import { Stage, Layer, Rect, Text, Image as KonvaImg, Group } from 'react-konva'
 import useImage from 'use-image';
 import './ReviewPanel.css';
 
-const API_URL = "http://localhost:8000/api/v1";
-const BASE_URL = API_URL.replace('/api/v1', '');
+import { API_URL, BASE_URL } from '../config';
 
 const CanvasImage = ({ src }) => {
     const [img] = useImage(src, 'anonymous');

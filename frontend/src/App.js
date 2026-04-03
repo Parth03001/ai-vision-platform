@@ -6,7 +6,7 @@ import LoginPage from './components/LoginPage';
 import ProjectList from './components/ProjectList';
 import AnnotationWorkspace from './components/AnnotationWorkspace';
 
-const API_URL = "http://localhost:8000/api/v1";
+import { API_URL } from './config';
 
 // ── Attach saved token to every axios request automatically ──────
 const savedToken = localStorage.getItem('auth_token');

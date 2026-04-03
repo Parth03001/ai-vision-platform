@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import './LabelsPanel.css';
 
-const API_URL = "http://localhost:8000/api/v1";
+import { API_URL } from '../config';
 
 // Consistent color per class index (cycles through palette)
 const CLASS_COLORS = [

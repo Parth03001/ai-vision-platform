@@ -11,7 +11,7 @@ import ReviewPanel from './ReviewPanel';
 import VideoPanel from './VideoPanel';
 import './AnnotationWorkspace.css';
 
-const API_URL = "http://localhost:8000/api/v1";
+import { API_URL } from '../config';
 
 const KonvaImage = ({ src }) => {
     const [image] = useImage(src, 'anonymous');

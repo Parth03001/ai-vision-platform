@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import './AutoAnnotatePanel.css';
 
-const API_URL = "http://localhost:8000/api/v1";
-const IMG_URL  = "http://localhost:8000";
+import { API_URL, BASE_URL } from '../config';
+const IMG_URL  = BASE_URL;
 const POLL_INTERVAL  = 2500;
 const NO_WORKER_TICKS = 15; // ~37s
 

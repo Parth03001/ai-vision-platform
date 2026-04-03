@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import './ProjectList.css';
 
-const API_URL = "http://localhost:8000/api/v1";
+import { API_URL } from '../config';
 
 /* ── Per-project gradient palette ─────────────────────────────── */
 const CARD_PALETTES = [

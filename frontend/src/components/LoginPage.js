@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import './LoginPage.css';
 
-const API_URL = "http://localhost:8000/api/v1";
+import { API_URL } from '../config';
 
 // ── Left panel feature list ──────────────────────────────────────
 const FEATURES = [

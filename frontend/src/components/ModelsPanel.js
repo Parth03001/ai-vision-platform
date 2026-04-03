@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import './ModelsPanel.css';
 
-const API_URL = 'http://localhost:8000/api/v1';
+import { API_URL } from '../config';
 
 /* ─────────────────────────────────────────────────────────────────
    Helpers

@@ -7,7 +7,7 @@ import {
 import { YOLO_MODEL_GROUPS, DEFAULT_SEED_MODEL } from '../constants/yoloModels';
 import './TrainingPanel.css';
 
-const API_URL = "http://localhost:8000/api/v1";
+import { API_URL } from '../config';
 const POLL_INTERVAL = 3000;
 const MAX_PARALLEL = 2;
 const NO_WORKER_TICKS = 15; // ~45s
