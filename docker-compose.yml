@@ -169,7 +169,9 @@ services:
   # Port 80   → HTTP to HTTPS redirect
   # Port 443  → HTTPS: serves frontend static files + proxies /api/v1 → backend:8000
   nginx:
-    image: nginx:alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
     container_name: aivision-nginx
     ports:
       - "80:80"
