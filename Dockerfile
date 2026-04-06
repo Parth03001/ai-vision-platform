@@ -47,22 +47,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11 \
     && ln -sf /usr/bin/python3.11 /usr/bin/python3 \
     && ln -sf /usr/bin/python3.11 /usr/bin/python \
-    && ln -sf /usr/local/bin/pip3.11 /usr/local/bin/pip \
-    && ln -sf /usr/local/bin/pip3.11 /usr/local/bin/pip3 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # ── Install PyTorch with CUDA 12.1 first (T4-compatible CUDA wheels) ─────────
-# This must come BEFORE requirements.txt so pip does not downgrade to CPU torch.
-RUN pip install --no-cache-dir \
+# Using python3 -m pip to avoid any PATH issues with pip symlinks in CUDA image.
+RUN python3 -m pip install --no-cache-dir \
         "torch>=2.1.0" \
         "torchvision>=0.16.0" \
         --index-url https://download.pytorch.org/whl/cu121
 
 # ── Install remaining Python dependencies ─────────────────────────────────────
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
+RUN python3 -m pip install --no-cache-dir -r requirements.txt \
         --extra-index-url https://download.pytorch.org/whl/cu121
 
 # ── Copy application code ─────────────────────────────────────────────────────
