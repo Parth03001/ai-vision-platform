@@ -47,6 +47,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11 \
     && ln -sf /usr/bin/python3.11 /usr/bin/python3 \
     && ln -sf /usr/bin/python3.11 /usr/bin/python \
+    && ln -sf /usr/local/bin/pip3.11 /usr/local/bin/pip \
+    && ln -sf /usr/local/bin/pip3.11 /usr/local/bin/pip3 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
