@@ -487,6 +487,7 @@ def train_seed_model(
         project=str(settings.model_dir / project_id),
         name="seed_model",
         verbose=False,
+        workers=0,           # Celery workers are daemonic — cannot spawn DataLoader subprocesses
     )
 
     # ── Phase 4: Persist + cleanup ───────────────────────────────
@@ -622,6 +623,7 @@ def train_main_model(
         project=str(settings.model_dir / project_id),
         name="main_model",
         verbose=False,
+        workers=0,           # Celery workers are daemonic — cannot spawn DataLoader subprocesses
     )
 
     # ── Phase 4: Persist + cleanup ───────────────────────────────

@@ -30,26 +30,25 @@ def load_ai_models():
     
     if _MODELS["m_dino"] is None:
         print(f"Loading AI Prompt models to {device}...")
-        
-        # Get absolute path to the project root (D:\ai-vision-platform)
-        # assuming this file is in backend/app/tasks/
-        base_dir = Path(__file__).resolve().parents[3] 
-        
-        dino_path   = str(base_dir / "datavision_hf_models" / "grounding-dino-base")
-        sam2_path   = str(base_dir / "datavision_hf_models" / "sam2-hiera-large")
-        siglip_path = str(base_dir / "datavision_hf_models" / "siglip-so400m-patch14-384")
+
+        # Use paths from settings (set via env vars in docker-compose / .env).
+        # Do NOT compute paths relative to __file__ — the Docker working directory
+        # makes parents[3] resolve to "/" causing HuggingFace repo-ID validation errors.
+        dino_path   = settings.grounding_dino_path
+        sam2_path   = settings.sam2_path
+        siglip_path = settings.siglip_path
 
         print(f"  - Loading DINO from {dino_path}...")
-        _MODELS["p_dino"] = AutoProcessor.from_pretrained(dino_path)
-        _MODELS["m_dino"] = AutoModelForZeroShotObjectDetection.from_pretrained(dino_path).to(device)
-        
+        _MODELS["p_dino"] = AutoProcessor.from_pretrained(dino_path, local_files_only=True)
+        _MODELS["m_dino"] = AutoModelForZeroShotObjectDetection.from_pretrained(dino_path, local_files_only=True).to(device)
+
         print(f"  - Loading SAM 2 from {sam2_path}...")
-        _MODELS["p_sam2"] = Sam2Processor.from_pretrained(sam2_path)
-        _MODELS["m_sam2"] = Sam2Model.from_pretrained(sam2_path).to(device)
-        
+        _MODELS["p_sam2"] = Sam2Processor.from_pretrained(sam2_path, local_files_only=True)
+        _MODELS["m_sam2"] = Sam2Model.from_pretrained(sam2_path, local_files_only=True).to(device)
+
         print(f"  - Loading SigLIP from {siglip_path}...")
-        _MODELS["p_siglip"] = AutoProcessor.from_pretrained(siglip_path)
-        _MODELS["m_siglip"] = AutoModelForZeroShotImageClassification.from_pretrained(siglip_path).to(device)
+        _MODELS["p_siglip"] = AutoProcessor.from_pretrained(siglip_path, local_files_only=True)
+        _MODELS["m_siglip"] = AutoModelForZeroShotImageClassification.from_pretrained(siglip_path, local_files_only=True).to(device)
     
     return _MODELS, device
 
