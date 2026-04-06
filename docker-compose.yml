@@ -181,7 +181,7 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./ssl:/etc/nginx/ssl:ro            # fullchain.pem, key.pem, ca-chain.crt
       - frontend_build:/usr/share/nginx/html:ro   # Shared with backend
-      - uploads_data:/usr/share/nginx/html/uploads:ro
+      - uploads_data:/var/www/uploads:ro
     depends_on:
       backend:
         condition: service_healthy
