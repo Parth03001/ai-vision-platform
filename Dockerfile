@@ -30,6 +30,8 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Install Python 3.11 (via deadsnakes PPA) + system libs for OpenCV / psycopg2
+# Note: nvidia/cuda base has Ubuntu's python3.10 as default — we install 3.11
+# explicitly and always call python3.11 directly to avoid any version confusion.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         software-properties-common curl \
     && add-apt-repository -y ppa:deadsnakes/ppa \
@@ -45,22 +47,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libsm6 \
         libxext6 \
     && curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11 \
-    && ln -sf /usr/bin/python3.11 /usr/bin/python3 \
-    && ln -sf /usr/bin/python3.11 /usr/bin/python \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # ── Install PyTorch with CUDA 12.1 first (T4-compatible CUDA wheels) ─────────
-# Using python3 -m pip to avoid any PATH issues with pip symlinks in CUDA image.
-RUN python3 -m pip install --no-cache-dir \
+# Use python3.11 -m pip explicitly — avoids confusion with Ubuntu's python3.10
+RUN python3.11 -m pip install --no-cache-dir \
         "torch>=2.1.0" \
         "torchvision>=0.16.0" \
         --index-url https://download.pytorch.org/whl/cu121
 
 # ── Install remaining Python dependencies ─────────────────────────────────────
 COPY backend/requirements.txt .
-RUN python3 -m pip install --no-cache-dir -r requirements.txt \
+RUN python3.11 -m pip install --no-cache-dir -r requirements.txt \
         --extra-index-url https://download.pytorch.org/whl/cu121
 
 # ── Copy application code ─────────────────────────────────────────────────────
@@ -77,6 +77,6 @@ RUN mkdir -p /app/data/uploads /app/data/models /app/logs
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+    CMD python3.11 -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 
-CMD ["python3", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python3.11", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
