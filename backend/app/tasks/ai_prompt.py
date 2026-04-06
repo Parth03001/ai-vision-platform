@@ -38,6 +38,17 @@ def load_ai_models():
         sam2_path   = settings.sam2_path
         siglip_path = settings.siglip_path
 
+        # Validate paths exist before calling from_pretrained. HuggingFace falls back
+        # to repo-ID validation when the directory is missing, producing a misleading
+        # "Repo id must be in the form..." error instead of a clear "not found" message.
+        for name, path in [("GROUNDING_DINO_PATH", dino_path), ("SAM2_PATH", sam2_path), ("SIGLIP_PATH", siglip_path)]:
+            if not Path(path).is_dir():
+                raise FileNotFoundError(
+                    f"Model directory not found: {path}\n"
+                    f"Set the {name} env var to the correct local path, or copy the model files there.\n"
+                    f"Expected inside the container at: {path}"
+                )
+
         print(f"  - Loading DINO from {dino_path}...")
         _MODELS["p_dino"] = AutoProcessor.from_pretrained(dino_path, local_files_only=True)
         _MODELS["m_dino"] = AutoModelForZeroShotObjectDetection.from_pretrained(dino_path, local_files_only=True).to(device)

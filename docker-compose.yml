@@ -90,7 +90,7 @@ services:
       - "8000:8000"          # Direct API access (also used internally by Nginx)
     volumes:
       - uploads_data:/app/data/uploads
-      - models_data:/app/data/models
+      - ${MODELS_DIR:-/datavision_hf_models}:/app/data/models:ro
       - frontend_build:/app/frontend/build  # Shared with Nginx
       - ./logs:/app/logs
     depends_on:
@@ -124,7 +124,7 @@ services:
     command: >
       python3 -m celery -A app.tasks.celery_app worker
       --loglevel=info
-      --concurrency=2
+      --pool=solo
       -Q celery
     environment:
       # PostgreSQL
@@ -146,7 +146,7 @@ services:
       SEED_LEARNING_RATE: ${SEED_LEARNING_RATE:-0.005}
     volumes:
       - uploads_data:/app/data/uploads
-      - models_data:/app/data/models
+      - ${MODELS_DIR:-/datavision_hf_models}:/app/data/models:ro
       - ./logs:/app/logs
     depends_on:
       backend:
@@ -204,8 +204,6 @@ volumes:
   redis_data:
     driver: local
   uploads_data:
-    driver: local
-  models_data:
     driver: local
   frontend_build:
     driver: local
