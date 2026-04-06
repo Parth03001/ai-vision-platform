@@ -18,12 +18,12 @@ ENV REACT_APP_BASE_URL=$REACT_APP_BASE_URL
 
 RUN npm run build
 
-# ── Stage 2: PyTorch official image — Python 3.11 + CUDA 12.1 + pip included ──
-# pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime already ships:
-#   • Python 3.11  • pip  • PyTorch 2.1 (CUDA 12.1)  • cuDNN 8
-# T4 GPU (Compute Capability 7.5) is fully supported by CUDA 12.1 + cuDNN 8.
+# ── Stage 2: PyTorch official image — Python 3.11 + CUDA 12.8 + pip included ──
+# pytorch/pytorch:2.11.0-cuda12.8-cudnn9-runtime ships:
+#   • Python 3.11  • pip  • PyTorch 2.11  • CUDA 12.8  • cuDNN 9
+# T4 GPU (Compute Capability 7.5) is fully supported by CUDA 12.8.
 # No manual Python/pip installation needed.
-FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
+FROM pytorch/pytorch:2.11.0-cuda12.8-cudnn9-runtime
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -47,8 +47,7 @@ WORKDIR /app
 # ── Install Python dependencies ───────────────────────────────────────────────
 # PyTorch is already installed in the base image — pip will skip reinstalling it.
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
-        --extra-index-url https://download.pytorch.org/whl/cu121
+RUN pip install --no-cache-dir -r requirements.txt
 
 # ── Copy application code ─────────────────────────────────────────────────────
 COPY backend/ ./
