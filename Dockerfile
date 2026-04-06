@@ -45,9 +45,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # ── Install Python dependencies ───────────────────────────────────────────────
+# --break-system-packages is safe in Docker (isolated container).
+# Required for Python 3.12+ which enforces PEP 668 externally-managed-environment.
 # PyTorch is already installed in the base image — pip will skip reinstalling it.
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --break-system-packages -r requirements.txt
 
 # ── Copy application code ─────────────────────────────────────────────────────
 COPY backend/ ./
