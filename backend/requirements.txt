@@ -24,9 +24,9 @@ celery[redis]>=5.3.6
 redis>=5.0.0
 
 # Deep Learning
-torch>=2.1.0
-torchvision>=0.16.0
-transformers==4.57.3
+# torch and torchvision are pre-installed in the pytorch/pytorch base image —
+# do NOT list them here or pip may overwrite the CUDA build with a CPU-only version.
+transformers>=4.40.0
 sentencepiece>=0.2.1
 protobuf
 ultralytics>=8.1.0
