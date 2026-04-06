@@ -18,10 +18,12 @@ ENV REACT_APP_BASE_URL=$REACT_APP_BASE_URL
 
 RUN npm run build
 
-# ── Stage 2: CUDA-enabled Python Backend (T4 / Turing arch, CUDA 12.1) ───────
-# nvidia/cuda:12.1.0-cudnn8-runtime provides cuDNN 8 + CUDA 12.1 libs.
-# T4 (Compute Capability 7.5) is fully supported by CUDA 12.1 + cuDNN 8.
-FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
+# ── Stage 2: PyTorch official image — Python 3.11 + CUDA 12.1 + pip included ──
+# pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime already ships:
+#   • Python 3.11  • pip  • PyTorch 2.1 (CUDA 12.1)  • cuDNN 8
+# T4 GPU (Compute Capability 7.5) is fully supported by CUDA 12.1 + cuDNN 8.
+# No manual Python/pip installation needed.
+FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -29,16 +31,8 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install Python 3.11 (via deadsnakes PPA) + system libs for OpenCV / psycopg2
-# Note: nvidia/cuda base has Ubuntu's python3.10 as default — we install 3.11
-# explicitly and always call python3.11 directly to avoid any version confusion.
+# Install system libs for OpenCV / psycopg2
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        software-properties-common curl \
-    && add-apt-repository -y ppa:deadsnakes/ppa \
-    && apt-get update && apt-get install -y --no-install-recommends \
-        python3.11 \
-        python3.11-dev \
-        python3.11-distutils \
         gcc \
         libpq-dev \
         postgresql-client \
@@ -46,21 +40,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libglib2.0-0 \
         libsm6 \
         libxext6 \
-    && curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# ── Install PyTorch with CUDA 12.1 first (T4-compatible CUDA wheels) ─────────
-# Use python3.11 -m pip explicitly — avoids confusion with Ubuntu's python3.10
-RUN python3.11 -m pip install --no-cache-dir \
-        "torch>=2.1.0" \
-        "torchvision>=0.16.0" \
-        --index-url https://download.pytorch.org/whl/cu121
-
-# ── Install remaining Python dependencies ─────────────────────────────────────
+# ── Install Python dependencies ───────────────────────────────────────────────
+# PyTorch is already installed in the base image — pip will skip reinstalling it.
 COPY backend/requirements.txt .
-RUN python3.11 -m pip install --no-cache-dir -r requirements.txt \
+RUN pip install --no-cache-dir -r requirements.txt \
         --extra-index-url https://download.pytorch.org/whl/cu121
 
 # ── Copy application code ─────────────────────────────────────────────────────
@@ -77,6 +64,6 @@ RUN mkdir -p /app/data/uploads /app/data/models /app/logs
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python3.11 -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 
-CMD ["python3.11", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
