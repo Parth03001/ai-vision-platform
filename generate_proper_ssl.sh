@@ -4,20 +4,21 @@
 # Generates Nginx-compatible SSL files ensuring proper formatting (newlines).
 
 # Directories
-SOURCE_DIR="/home/maiuser/certificate/ssl"
-DEST_DIR="/home/maiuser/nashik-chatbot-pq/ssl"
-BACKUP_DIR="/home/maiuser/nashik-chatbot-pq/ssl_backup_$(date +%Y%m%d_%H%M%S)"
+SOURCE_DIR="/home/user/ai-vision-platform/certificate/ssl"
+DEST_DIR="/home/user/ai-vision-platform/ssl"
+BACKUP_DIR="/home/user/ai-vision-platform/ssl_backup_$(date +%Y%m%d_%H%M%S)"
 
 # Files
-SERVER_CERT="$SOURCE_DIR/m-devsecopswildcard.cer"
-INTERMEDIATE_CERT="$SOURCE_DIR/intermediate.cer"
-ROOT_CERT="$SOURCE_DIR/root.cer"
-PFX_FILE="$SOURCE_DIR/m-devsecopswildcard.pfx"
+SERVER_CERT="$SOURCE_DIR/m-devsecops.com.cer"
+CA_CERT="$SOURCE_DIR/CloudflareCA.cer"
+KEY_SOURCE="$SOURCE_DIR/m-devsecops.com.key"
+PFX_FILE="$SOURCE_DIR/m-devsecops.com.pfx"
 
 # Output Files
 FULLCHAIN="$DEST_DIR/fullchain.pem"
 CA_CHAIN="$DEST_DIR/ca-chain.crt"
 KEY_FILE="$DEST_DIR/key.pem"
+CERT_FILE="$DEST_DIR/cert.pem"
 
 echo "=== Starting Safe SSL Generation ==="
 echo "Source: $SOURCE_DIR"
@@ -36,34 +37,46 @@ fi
 process_cert() {
     local file=$1
     local name=$2
-    
+
     if [ ! -f "$file" ]; then
-        echo "❌ Error: $name file not found at $file"
+        echo "❌ Error: $name file not found at $file" >&2
         return 1
     fi
 
     echo "Processing $name..." >&2
 
-    # Check if DER format (binary), convert if so. Otherwise cat.
+    # Check if already PEM format
     if openssl x509 -in "$file" -text -noout >/dev/null 2>&1; then
-        # It's already PEM
+        # Already PEM
         cat "$file"
     else
         # Try converting DER to PEM
         echo "  (Converting DER to PEM)" >&2
         openssl x509 -inform DER -in "$file" -outform PEM
     fi
-    
+
     # Always append a newline to be safe
     echo ""
 }
 
-# 3. Generate fullchain.pem (Server + Intermediate)
+# 3. Generate cert.pem (Server cert only)
 echo "------------------------------------------------"
-echo "Generating fullchain.pem (Server + Intermediate)..."
+echo "Generating cert.pem (Server Certificate only)..."
+process_cert "$SERVER_CERT" "Server Certificate" > "$CERT_FILE"
+
+if [ -s "$CERT_FILE" ]; then
+    echo "✅ cert.pem created."
+else
+    echo "❌ Failed to create cert.pem"
+    exit 1
+fi
+
+# 4. Generate fullchain.pem (Server + CA)
+echo "------------------------------------------------"
+echo "Generating fullchain.pem (Server + CloudFlare CA)..."
 {
     process_cert "$SERVER_CERT" "Server Certificate"
-    process_cert "$INTERMEDIATE_CERT" "Intermediate Certificate"
+    process_cert "$CA_CERT" "CloudFlare CA Certificate"
 } > "$FULLCHAIN"
 
 if [ -s "$FULLCHAIN" ]; then
@@ -73,13 +86,10 @@ else
     exit 1
 fi
 
-# 4. Generate ca-chain.crt (Intermediate + Root)
+# 5. Generate ca-chain.crt (CA Certificate)
 echo "------------------------------------------------"
-echo "Generating ca-chain.crt (Intermediate + Root)..."
-{
-    process_cert "$INTERMEDIATE_CERT" "Intermediate Certificate"
-    process_cert "$ROOT_CERT" "Root Certificate"
-} > "$CA_CHAIN"
+echo "Generating ca-chain.crt (CloudFlare CA)..."
+process_cert "$CA_CERT" "CloudFlare CA Certificate" > "$CA_CHAIN"
 
 if [ -s "$CA_CHAIN" ]; then
     echo "✅ ca-chain.crt created."
@@ -88,64 +98,94 @@ else
     exit 1
 fi
 
-# 5. Handle Private Key
+# 6. Handle Private Key
 echo "------------------------------------------------"
 echo "Handling Private Key..."
 
-# Strategy A: Copy existing working key if available
-if [ -f "$DEST_DIR/key.pem" ] && [ -s "$DEST_DIR/key.pem" ]; then
-    echo "Existing key.pem found in destination. Keeping it."
-# We verify it matches later
-# Strategy B: Extract from PFX if PFX exists
+# Strategy A: Use the direct key file from source
+if [ -f "$KEY_SOURCE" ]; then
+    echo "Using key file from source: $KEY_SOURCE"
+    # Convert to traditional RSA PEM if it's PKCS#8 (for broader Nginx compatibility)
+    if grep -q "BEGIN PRIVATE KEY" "$KEY_SOURCE"; then
+        echo "  (Converting PKCS#8 to RSA PEM format for Nginx compatibility)"
+        openssl rsa -in "$KEY_SOURCE" -out "$KEY_FILE" 2>/dev/null
+        if [ ! -s "$KEY_FILE" ]; then
+            # If RSA conversion fails (e.g. EC key), just copy as-is
+            echo "  (RSA conversion failed, copying as-is — PKCS#8 also works with modern Nginx)"
+            cp "$KEY_SOURCE" "$KEY_FILE"
+        fi
+    else
+        cp "$KEY_SOURCE" "$KEY_FILE"
+    fi
+
+    if [ -s "$KEY_FILE" ]; then
+        echo "✅ key.pem set from source key file."
+    else
+        echo "❌ Failed to set key.pem from source."
+    fi
+
+# Strategy B: Extract from PFX if direct key not available
 elif [ -f "$PFX_FILE" ]; then
     echo "Extracting private key from PFX..."
-    # Try with empty password first
     openssl pkcs12 -in "$PFX_FILE" -nocerts -nodes -out "$KEY_FILE" -passin pass: 2>/dev/null || \
     openssl pkcs12 -in "$PFX_FILE" -nocerts -nodes -out "$KEY_FILE"
-    
+
     if [ -s "$KEY_FILE" ]; then
         echo "✅ Key extracted from PFX."
     else
         echo "❌ Failed to extract key from PFX (password might be required)."
     fi
 else
-    echo "⚠️ No private key found (checked existing key.pem and source PFX)."
+    echo "⚠️  No private key found (checked source key file and PFX)."
 fi
 
-# 6. Set Permissions
-chmod 644 "$FULLCHAIN" "$CA_CHAIN"
+# 7. Set Permissions
+chmod 644 "$FULLCHAIN" "$CA_CHAIN" "$CERT_FILE"
 [ -f "$KEY_FILE" ] && chmod 600 "$KEY_FILE"
 
-# 7. Verification
+# 8. Verification
 echo "------------------------------------------------"
 echo "Verifying Certificates..."
 
 # Check fullchain
-if openssl x509 -in "$FULLCHAIN" -noout; then
+if openssl x509 -in "$FULLCHAIN" -noout 2>/dev/null; then
     echo "✅ fullchain.pem format is VALID."
+    openssl x509 -in "$FULLCHAIN" -noout -subject -dates
 else
-    echo "❌ fullchain.pem format is INVALID (check logs)."
+    echo "❌ fullchain.pem format is INVALID."
 fi
 
 # Check ca-chain
-if openssl x509 -in "$CA_CHAIN" -noout; then
+if openssl x509 -in "$CA_CHAIN" -noout 2>/dev/null; then
     echo "✅ ca-chain.crt format is VALID."
 else
-    echo "❌ ca-chain.crt format is INVALID (check logs)."
+    echo "❌ ca-chain.crt format is INVALID."
 fi
 
-# Check Match
+# Check key
 if [ -f "$KEY_FILE" ]; then
-    CERT_MOD=$(openssl x509 -in "$FULLCHAIN" -noout -modulus | openssl md5)
-    KEY_MOD=$(openssl rsa -in "$KEY_FILE" -noout -modulus | openssl md5)
-    
-    if [ "$CERT_MOD" == "$KEY_MOD" ]; then
-        echo "✅ Certificate and Key MATCH."
+    if openssl pkey -in "$KEY_FILE" -noout 2>/dev/null; then
+        echo "✅ key.pem is VALID."
     else
-        echo "❌ Certificate and Key DO NOT MATCH!"
-        echo "Cert MD5: $CERT_MOD"
-        echo "Key MD5:  $KEY_MOD"
+        echo "❌ key.pem is INVALID."
     fi
 fi
 
+# Check cert/key match
+if [ -f "$KEY_FILE" ] && [ -f "$FULLCHAIN" ]; then
+    CERT_PUB=$(openssl x509 -in "$FULLCHAIN" -noout -pubkey 2>/dev/null | openssl md5)
+    KEY_PUB=$(openssl pkey -in "$KEY_FILE" -pubout 2>/dev/null | openssl md5)
+
+    if [ "$CERT_PUB" == "$KEY_PUB" ]; then
+        echo "✅ Certificate and Key MATCH."
+    else
+        echo "❌ Certificate and Key DO NOT MATCH!"
+        echo "Cert pubkey MD5: $CERT_PUB"
+        echo "Key pubkey MD5:  $KEY_PUB"
+    fi
+fi
+
+echo ""
+echo "=== SSL Files Summary ==="
+ls -lh "$DEST_DIR/"
 echo "=== Done ==="
