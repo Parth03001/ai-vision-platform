@@ -90,7 +90,7 @@ services:
       - "8000:8000"          # Direct API access (also used internally by Nginx)
     volumes:
       - uploads_data:/app/data/uploads
-      - ${MODELS_DIR:-/datavision_hf_models}:/app/data/models:ro
+      - ./data/models:/app/data/models
       - frontend_build:/app/frontend/build  # Shared with Nginx
       - ./logs:/app/logs
     depends_on:
@@ -146,7 +146,7 @@ services:
       SEED_LEARNING_RATE: ${SEED_LEARNING_RATE:-0.005}
     volumes:
       - uploads_data:/app/data/uploads
-      - ${MODELS_DIR:-/datavision_hf_models}:/app/data/models:ro
+      - ./data/models:/app/data/models
       - ./logs:/app/logs
     depends_on:
       backend:
