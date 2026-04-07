@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import './LabelsPanel.css';
+import { Tag, X, Check, Pencil, Trash2, ChevronUp, ChevronDown, AlertTriangle, Plus } from 'lucide-react';
+import logoImg from '../logo.png';
 
 import { API_URL } from '../config';
 
@@ -210,13 +212,14 @@ const LabelsPanel = ({ project, onClose, onLabelsUpdated }) => {
                 {/* ── Header ── */}
                 <div className="lp-header">
                     <div className="lp-header-left">
-                        <span className="lp-header-icon">🏷️</span>
+                        <span className="lp-header-icon"><Tag size={20} /></span>
                         <div>
                             <h2 className="lp-title">Edit Labels</h2>
                             <p className="lp-subtitle">{project.name}</p>
                         </div>
                     </div>
-                    <button className="lp-close" onClick={onClose}>✕</button>
+                    <img src={logoImg} alt="Logo" style={{ height: 32, width: 'auto', objectFit: 'contain' }} />
+                    <button className="lp-close" onClick={onClose}><X size={18} /></button>
                 </div>
 
                 <div className="lp-body">
@@ -238,8 +241,8 @@ const LabelsPanel = ({ project, onClose, onLabelsUpdated }) => {
                     {/* Error banner */}
                     {error && (
                         <div className="lp-error">
-                            <span>⚠ {error}</span>
-                            <button className="lp-error-dismiss" onClick={() => setError(null)}>✕</button>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><AlertTriangle size={14} /> {error}</span>
+                            <button className="lp-error-dismiss" onClick={() => setError(null)}><X size={14} /></button>
                         </div>
                     )}
 
@@ -286,7 +289,7 @@ const LabelsPanel = ({ project, onClose, onLabelsUpdated }) => {
                     <div className="lp-list">
                         {classes.length === 0 ? (
                             <div className="lp-empty">
-                                <span className="lp-empty-icon">🏷️</span>
+                                <span className="lp-empty-icon"><Tag size={32} /></span>
                                 <p>No labels yet.</p>
                                 <p className="lp-empty-sub">Add labels below to organize your annotations.</p>
                             </div>
@@ -340,12 +343,12 @@ const LabelsPanel = ({ project, onClose, onLabelsUpdated }) => {
                                                     onClick={() => saveEdit(idx)}
                                                     disabled={saving}
                                                     title="Save rename"
-                                                >✓</button>
+                                                ><Check size={14} /></button>
                                                 <button
                                                     className="lp-icon-btn lp-icon-btn--cancel"
                                                     onClick={cancelEdit}
                                                     title="Cancel"
-                                                >✗</button>
+                                                ><X size={14} /></button>
                                             </div>
                                         ) : (
                                             <div className="lp-row-actions">
@@ -354,25 +357,25 @@ const LabelsPanel = ({ project, onClose, onLabelsUpdated }) => {
                                                     onClick={() => move(idx, -1)}
                                                     disabled={idx === 0 || saving}
                                                     title="Move up"
-                                                >↑</button>
+                                                ><ChevronUp size={14} /></button>
                                                 <button
                                                     className="lp-icon-btn"
                                                     onClick={() => move(idx, 1)}
                                                     disabled={idx === classes.length - 1 || saving}
                                                     title="Move down"
-                                                >↓</button>
+                                                ><ChevronDown size={14} /></button>
                                                 <button
                                                     className="lp-icon-btn lp-icon-btn--edit"
                                                     onClick={() => startEdit(idx)}
                                                     disabled={saving}
                                                     title="Rename"
-                                                >✏</button>
+                                                ><Pencil size={14} /></button>
                                                 <button
                                                     className="lp-icon-btn lp-icon-btn--del"
                                                     onClick={() => confirmDelete(cls)}
                                                     disabled={saving}
                                                     title="Delete"
-                                                >🗑</button>
+                                                ><Trash2 size={14} /></button>
                                             </div>
                                         )}
                                     </div>
@@ -412,7 +415,7 @@ const LabelsPanel = ({ project, onClose, onLabelsUpdated }) => {
                         </div>
                     ) : (
                         <button className="lp-add-btn" onClick={() => { setShowAdd(true); setEditingIdx(null); }}>
-                            + Add Label
+                            <Plus size={16} /> Add Label
                         </button>
                     )}
                 </div>

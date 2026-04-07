@@ -3,6 +3,8 @@ import axios from 'axios';
 import { Stage, Layer, Rect, Text, Image as KonvaImg, Group } from 'react-konva';
 import useImage from 'use-image';
 import './ReviewPanel.css';
+import { Check, X, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
+import logoImg from '../logo.png';
 
 import { API_URL, BASE_URL } from '../config';
 
@@ -24,7 +26,7 @@ const ClassPicker = ({ classes, onConfirm, onCancel }) => {
             <div className="rp-class-picker" onClick={e => e.stopPropagation()}>
                 <div className="rp-class-header">
                     <span>Select Class</span>
-                    <button onClick={onCancel}>✕</button>
+                    <button onClick={onCancel}><X size={14} /></button>
                 </div>
                 {classes.length > 0 && (
                     <div className="rp-class-list">
@@ -251,7 +253,7 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
         return (
             <div className="rp-overlay">
                 <div className="rp-empty-card">
-                    <div className="rp-empty-icon">🎉</div>
+                    <div className="rp-empty-icon"><Check size={32} /></div>
                     <h3>Nothing to Review</h3>
                     <p>Run Auto-Annotate first, then come back to review the results here.</p>
                     <button className="rp-btn rp-btn-neutral" onClick={onClose}>Close</button>
@@ -267,11 +269,12 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
                 {/* ── Header ── */}
                 <div className="rp-header">
                     <div className="rp-header-left">
-                        <span className="rp-header-icon">✦</span>
+                        <span className="rp-header-icon"><Sparkles size={20} /></span>
                         <div>
                             <div className="rp-header-title">Review Annotations</div>
                             <div className="rp-header-sub">{project.name}</div>
                         </div>
+                        <img src={logoImg} alt="Logo" style={{ height: 32, width: 'auto', objectFit: 'contain', marginLeft: 8 }} />
                     </div>
 
                     <div className="rp-header-center">
@@ -287,7 +290,7 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
                         className="rp-exit-btn"
                         onClick={() => { onAnnotationsUpdated?.(); onClose(); }}
                     >
-                        ✕ Exit Review
+                        <X size={16} /> Exit Review
                     </button>
                 </div>
 
@@ -319,7 +322,7 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
                                         crossOrigin="anonymous"
                                     />
                                     {reviewedIds.has(img.id) && (
-                                        <div className="rp-strip-check">✓</div>
+                                        <div className="rp-strip-check"><Check size={12} /></div>
                                     )}
                                 </div>
                                 <div className="rp-strip-name">{img.filename}</div>
@@ -450,10 +453,10 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
                                                     <Rect
                                                         x={drawnBox.x} y={drawnBox.y}
                                                         width={drawnBox.width} height={drawnBox.height}
-                                                        stroke="#6366f1"
+                                                        stroke="#dc143c"
                                                         strokeWidth={2 / scale}
                                                         dash={[6 / scale, 3 / scale]}
-                                                        fill="rgba(99,102,241,0.08)"
+                                                        fill="rgba(220,20,60,0.08)"
                                                     />
                                                 )}
                                             </Layer>
@@ -508,14 +511,14 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
                                                         title="Keep this annotation"
                                                         onClick={() => handleAcceptAnnotation(ann.id)}
                                                     >
-                                                        ✓ Keep
+                                                        <Check size={14} /> Keep
                                                     </button>
                                                     <button
                                                         className="rp-row-btn remove"
                                                         title="Remove this annotation"
                                                         onClick={() => handleRejectAnnotation(ann.id)}
                                                     >
-                                                        ✕ Remove
+                                                        <X size={14} /> Remove
                                                     </button>
                                                 </div>
                                             ) : (
@@ -534,7 +537,7 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
                                     onClick={handleAcceptAll}
                                     title="Accept all auto annotations (E)"
                                 >
-                                    ✓ Accept All Auto ({autoCount})
+                                    <Check size={14} /> Accept All Auto ({autoCount})
                                 </button>
                                 <button
                                     className="rp-bulk-btn rp-bulk-reject"
@@ -542,7 +545,7 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
                                     onClick={handleRejectAll}
                                     title="Reject all auto annotations (R)"
                                 >
-                                    ✕ Reject All Auto
+                                    <X size={14} /> Reject All Auto
                                 </button>
                             </div>
                         </div>
@@ -568,7 +571,7 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
                             disabled={currentIdx === 0}
                             onClick={() => navigate(-1)}
                         >
-                            ← Prev
+                            <ChevronLeft size={16} /> Prev
                         </button>
                         <button
                             className="rp-nav-btn rp-nav-next"
@@ -578,7 +581,7 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
                                 navigate(1);
                             }}
                         >
-                            Next →
+                            Next <ChevronRight size={16} />
                         </button>
                     </div>
                 </div>

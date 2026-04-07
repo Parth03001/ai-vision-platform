@@ -11,6 +11,8 @@ import ReviewPanel from './ReviewPanel';
 import VideoPanel from './VideoPanel';
 import ActiveLearningPanel from './ActiveLearningPanel';
 import './AnnotationWorkspace.css';
+import { Sparkles, AlertTriangle, X, Upload, Image as ImageIcon, Check, ArrowLeft, ArrowRight } from 'lucide-react';
+import logoImg from '../logo.png';
 
 import { API_URL } from '../config';
 
@@ -49,7 +51,7 @@ const ClassPicker = ({ classes, usedClasses, onConfirm, onCancel, remaining = 0 
                             <span className="class-picker-counter"> — {remaining} left</span>
                         )}
                     </span>
-                    <button className="class-picker-close" onClick={onCancel}>✕</button>
+                    <button className="class-picker-close" onClick={onCancel}><X size={16} /></button>
                 </div>
 
                 {allOptions.length > 0 && (
@@ -534,12 +536,15 @@ Do you want to proceed?`;
             {/* ── Sidebar ── */}
             <aside className="workspace-sidebar">
                 <div className="sidebar-section sidebar-actions">
-                    <p className="sidebar-label">Pipeline</p>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <p className="sidebar-label" style={{ margin: 0 }}>Pipeline</p>
+                        <img src={logoImg} alt="Logo" style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
+                    </div>
                     <button className="btn-action" onClick={() => setShowTrainingPanel(true)}>
-                        🚀 Train Seed Model
+                        Train Seed Model
                     </button>
                     <button className="btn-action btn-action-secondary" onClick={startAutoAnnotation}>
-                        ✨ Auto-Annotate
+                        Auto-Annotate
                     </button>
                     <button className="btn-action btn-action-al" onClick={() => setShowActiveLearningPanel(true)}>
                         🧠 Active Learning
@@ -549,23 +554,23 @@ Do you want to proceed?`;
                         onClick={() => setShowReviewPanel(true)}
                         disabled={images.filter(img => img.status === 'annotated').length === 0}
                     >
-                        🔍 Review Annotations
+                        Review Annotations
                     </button>
                     <button className="btn-action btn-action-main" onClick={() => setShowMainTrainingPanel(true)}>
-                        🎯 Train Main Model
+                        Train Main Model
                     </button>
                     <button className="btn-action btn-action-labels" onClick={() => setShowLabelsPanel(true)}>
-                        🏷️ Edit Labels
+                        Edit Labels
                     </button>
                     <button className="btn-action btn-action-models" onClick={() => setShowModelsPanel(true)}>
-                        📦 View Models
+                        View Models
                     </button>
                 </div>
 
                 <div className="sidebar-section">
                     <p className="sidebar-label">Images ({images.length})</p>
                     <button className="btn-action btn-action-video" onClick={() => setShowVideoPanel(true)}>
-                        🎬 Import Video
+                        Import Video
                     </button>
                     <label className={`upload-btn ${uploading ? 'uploading' : ''}`}>
                         {uploading
@@ -609,7 +614,7 @@ Do you want to proceed?`;
                     {images.length === 0 ? (
                         <div className="sidebar-empty-drop">
                             <p className="sidebar-empty">No images yet.</p>
-                            <p className="drop-hint">↑ Upload or drop images here</p>
+                            <p className="drop-hint">Upload or drop images here</p>
                         </div>
                     ) : (
                         <>
@@ -629,7 +634,7 @@ Do you want to proceed?`;
                             {/* Drop overlay shown on top of the list while dragging */}
                             {isDragOver && (
                                 <div className="drop-overlay">
-                                    <span className="drop-overlay-icon">⬆</span>
+                                    <span className="drop-overlay-icon"><Upload size={24} /></span>
                                     <span>Drop to add images</span>
                                 </div>
                             )}
@@ -642,9 +647,9 @@ Do you want to proceed?`;
             <div className="workspace-canvas-area" ref={canvasAreaRef}>
                 {error && (
                     <div className="error-banner">
-                        <span className="error-icon">⚠</span>
+                        <span className="error-icon"><AlertTriangle size={16} /></span>
                         {error}
-                        <button className="error-dismiss" onClick={() => setError(null)}>✕</button>
+                        <button className="error-dismiss" onClick={() => setError(null)}><X size={16} /></button>
                     </div>
                 )}
 
@@ -665,7 +670,7 @@ Do you want to proceed?`;
                                     onClick={handleMarkEmpty}
                                     title="No objects in this frame — mark as done and advance to next image"
                                 >
-                                    ✓ No Objects
+                                    <Check size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} /> No Objects
                                 </button>
                             )}
                         </div>
@@ -673,7 +678,7 @@ Do you want to proceed?`;
                         {/* ── AI Prompt Bar (Below Toolbar) ── */}
                         <div className="ai-prompt-bar">
                             <div className="ai-prompt-bar-left">
-                                <span className="ai-prompt-spark">✦</span>
+                                <span className="ai-prompt-spark"><Sparkles size={16} /></span>
                                 <input
                                     type="text"
                                     className="ai-prompt-bar-input"
@@ -828,10 +833,10 @@ Do you want to proceed?`;
                                             y={drawnBox.y}
                                             width={drawnBox.width}
                                             height={drawnBox.height}
-                                            stroke="#6366f1"
+                                            stroke="#dc143c"
                                             strokeWidth={2 / scale}
                                             dash={[6 / scale, 3 / scale]}
-                                            fill="rgba(99,102,241,0.08)"
+                                            fill="rgba(220,20,60,0.08)"
                                         />
                                     )}
                                 </Layer>
@@ -868,16 +873,16 @@ Do you want to proceed?`;
                                         </span>
                                         {ann.source !== 'manual' && (
                                             <div className="annotation-verify-actions">
-                                                <button 
-                                                    className="ann-btn ann-btn-accept" 
+                                                <button
+                                                    className="ann-btn ann-btn-accept"
                                                     title="Accept"
                                                     onClick={() => handleAcceptAnnotation(ann.id)}
-                                                >✓</button>
-                                                <button 
-                                                    className="ann-btn ann-btn-reject" 
+                                                ><Check size={10} /></button>
+                                                <button
+                                                    className="ann-btn ann-btn-reject"
                                                     title="Reject"
                                                     onClick={() => handleRejectAnnotation(ann.id)}
-                                                >✕</button>
+                                                ><X size={10} /></button>
                                             </div>
                                         )}
                                     </div>
@@ -887,7 +892,7 @@ Do you want to proceed?`;
                     </div>
                 ) : (
                     <div className="canvas-placeholder">
-                        <div className="placeholder-icon">🖼️</div>
+                        <div className="placeholder-icon"><ImageIcon size={48} /></div>
                         <h3>Select an image</h3>
                         <p>Choose an image from the sidebar to start annotating.</p>
                     </div>

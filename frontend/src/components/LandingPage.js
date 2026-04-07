@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './LandingPage.css';
+import { Tag, Zap, Rocket, BarChart2, Target, Brain, FolderOpen, Pencil, ArrowRight, Eye } from 'lucide-react';
+import logoImg from '../logo.png';
 
 const LandingPage = ({ onLogin, onGetStarted }) => {
     const [scrolled, setScrolled] = useState(false);
@@ -18,37 +20,37 @@ const LandingPage = ({ onLogin, onGetStarted }) => {
 
     const features = [
         {
-            icon: '🏷️',
+            icon: <Tag size={24} />,
             title: 'Smart Annotation',
             desc: 'Draw bounding boxes with pixel-perfect precision. Multi-class support with keyboard shortcuts.',
-            color: '#6366f1',
+            color: '#dc143c',
         },
         {
-            icon: '⚡',
+            icon: <Zap size={24} />,
             title: 'Auto-Annotate',
             desc: 'Use seed models to auto-label remaining images. Review and accept in one click.',
             color: '#f59e0b',
         },
         {
-            icon: '🚀',
+            icon: <Rocket size={24} />,
             title: 'YOLO Training',
             desc: 'Train YOLO11, v10, v9, v8 models with live epoch charts, loss curves, and mAP metrics.',
             color: '#10b981',
         },
         {
-            icon: '📊',
+            icon: <BarChart2 size={24} />,
             title: 'Live Metrics',
             desc: 'Watch box loss, cls loss, and mAP50 update in real-time as your model trains.',
             color: '#ec4899',
         },
         {
-            icon: '🎯',
+            icon: <Target size={24} />,
             title: 'Pipeline Control',
             desc: 'Seed model → Auto-annotate → Full training. Automated pipeline with job queuing.',
-            color: '#38bdf8',
+            color: '#0ea5e9',
         },
         {
-            icon: '🧠',
+            icon: <Brain size={24} />,
             title: '18 YOLO Models',
             desc: 'Choose from Nano to XL across 4 model families. Pick speed or accuracy.',
             color: '#8b5cf6',
@@ -58,19 +60,19 @@ const LandingPage = ({ onLogin, onGetStarted }) => {
     const steps = [
         {
             num: '01',
-            icon: '📁',
+            icon: <FolderOpen size={36} />,
             title: 'Upload Your Images',
             desc: 'Drag & drop or batch upload. We handle formats and resolution automatically.',
         },
         {
             num: '02',
-            icon: '✏️',
+            icon: <Pencil size={36} />,
             title: 'Annotate & Auto-Label',
             desc: 'Draw bounding boxes manually, then use AI to auto-label the rest in seconds.',
         },
         {
             num: '03',
-            icon: '🎯',
+            icon: <Target size={36} />,
             title: 'Train & Export',
             desc: 'One click trains your YOLO model. Monitor live metrics, export when ready.',
         },
@@ -90,7 +92,7 @@ const LandingPage = ({ onLogin, onGetStarted }) => {
             <nav className={`lnd-nav ${scrolled ? 'lnd-nav--scrolled' : ''}`}>
                 <div className="lnd-nav-inner">
                     <div className="lnd-brand">
-                        <span className="lnd-brand-icon">◈</span>
+                        <span className="lnd-brand-icon"><Eye size={20} /></span>
                         <span className="lnd-brand-text">AI Vision Platform</span>
                     </div>
                     <div className="lnd-nav-links">
@@ -99,7 +101,8 @@ const LandingPage = ({ onLogin, onGetStarted }) => {
                     </div>
                     <div className="lnd-nav-ctas">
                         <button className="lnd-btn-ghost" onClick={onLogin}>Sign In</button>
-                        <button className="lnd-btn-primary" onClick={onGetStarted}>Get Started →</button>
+                        <button className="lnd-btn-primary" onClick={onGetStarted}>Get Started</button>
+                        <img src={logoImg} alt="Logo" style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
                     </div>
                 </div>
             </nav>
@@ -134,7 +137,7 @@ const LandingPage = ({ onLogin, onGetStarted }) => {
                         <div className="lnd-hero-ctas">
                             <button className="lnd-cta-primary" onClick={onGetStarted}>
                                 Sign Up
-                                <span className="lnd-cta-arrow">→</span>
+                                <span className="lnd-cta-arrow"><ArrowRight size={18} /></span>
                             </button>
                         </div>
                     </div>
@@ -154,16 +157,16 @@ const LandingPage = ({ onLogin, onGetStarted }) => {
                                 <div className="lnd-mockup-sidebar">
                                     <div className="lnd-mock-section">
                                         <div className="lnd-mock-label">Pipeline</div>
-                                        <div className="lnd-mock-btn lnd-mock-btn--indigo">🚀 Seed Model</div>
-                                        <div className="lnd-mock-btn lnd-mock-btn--amber">✨ Auto-Annotate</div>
-                                        <div className="lnd-mock-btn lnd-mock-btn--green">🎯 Train Main</div>
-                                        <div className="lnd-mock-btn lnd-mock-btn--teal">🏷️ Edit Labels</div>
+                                        <div className="lnd-mock-btn lnd-mock-btn--indigo">Seed Model</div>
+                                        <div className="lnd-mock-btn lnd-mock-btn--amber">Auto-Annotate</div>
+                                        <div className="lnd-mock-btn lnd-mock-btn--green">Train Main</div>
+                                        <div className="lnd-mock-btn lnd-mock-btn--teal">Edit Labels</div>
                                     </div>
                                     <div className="lnd-mock-section">
                                         <div className="lnd-mock-label">Images (12)</div>
                                         {['dog_park.jpg', 'street_cam.jpg', 'store_01.jpg'].map((f, i) => (
                                             <div key={f} className={`lnd-mock-image-item ${i === 1 ? 'lnd-mock-image-item--active' : ''}`}>
-                                                <span className="lnd-mock-dot" style={{ background: i === 0 ? '#10b981' : '#6366f1' }} />
+                                                <span className="lnd-mock-dot" style={{ background: i === 0 ? '#10b981' : '#dc143c' }} />
                                                 <span className="lnd-mock-fname">{f}</span>
                                                 <span className={`lnd-mock-badge ${i === 0 ? 'lnd-mock-badge--done' : 'lnd-mock-badge--pen'}`}>
                                                     {i === 0 ? 'annotated' : 'pending'}
@@ -184,7 +187,7 @@ const LandingPage = ({ onLogin, onGetStarted }) => {
                                         <div className="lnd-mock-img">
                                             {/* Bounding boxes */}
                                             <div className="lnd-mock-bbox lnd-mock-bbox--1">
-                                                <span className="lnd-mock-bbox-label" style={{ background: '#6366f1' }}>person</span>
+                                                <span className="lnd-mock-bbox-label" style={{ background: '#dc143c' }}>person</span>
                                             </div>
                                             <div className="lnd-mock-bbox lnd-mock-bbox--2">
                                                 <span className="lnd-mock-bbox-label" style={{ background: '#f59e0b' }}>car</span>
@@ -198,7 +201,7 @@ const LandingPage = ({ onLogin, onGetStarted }) => {
                                     <div className="lnd-mock-anns">
                                         <div className="lnd-mock-ann-label">Annotations (3)</div>
                                         {[
-                                            { cls: 'person', color: '#6366f1' },
+                                            { cls: 'person', color: '#dc143c' },
                                             { cls: 'car', color: '#f59e0b' },
                                             { cls: 'bicycle', color: '#10b981' },
                                         ].map(({ cls, color }) => (
@@ -248,7 +251,7 @@ const LandingPage = ({ onLogin, onGetStarted }) => {
                                 style={{ '--card-color': f.color }}
                                 onMouseEnter={() => setActiveFeature(i)}
                             >
-                                <span className="lnd-bento-icon">{f.icon}</span>
+                                <span className="lnd-bento-icon" style={{ color: f.color }}>{f.icon}</span>
                                 <h3 className="lnd-bento-title">{f.title}</h3>
                                 <p className="lnd-bento-desc">{f.desc}</p>
                                 <div className="lnd-bento-glow" />
@@ -277,7 +280,7 @@ const LandingPage = ({ onLogin, onGetStarted }) => {
                                     <p className="lnd-step-desc">{s.desc}</p>
                                 </div>
                                 {i < steps.length - 1 && (
-                                    <div className="lnd-step-arrow">→</div>
+                                    <div className="lnd-step-arrow"><ArrowRight size={24} /></div>
                                 )}
                             </React.Fragment>
                         ))}
@@ -299,7 +302,7 @@ const LandingPage = ({ onLogin, onGetStarted }) => {
                     <div className="lnd-cta-btns">
                         <button className="lnd-cta-primary" onClick={onGetStarted}>
                             Sign Up
-                            <span className="lnd-cta-arrow">→</span>
+                            <span className="lnd-cta-arrow"><ArrowRight size={18} /></span>
                         </button>
                     </div>
                 </div>
@@ -309,7 +312,7 @@ const LandingPage = ({ onLogin, onGetStarted }) => {
             <footer className="lnd-footer">
                 <div className="lnd-footer-inner">
                     <div className="lnd-brand lnd-brand--footer">
-                        <span className="lnd-brand-icon">◈</span>
+                        <span className="lnd-brand-icon"><Eye size={18} /></span>
                         <span className="lnd-brand-text">AI Vision Platform</span>
                     </div>
                     <p className="lnd-footer-copy">

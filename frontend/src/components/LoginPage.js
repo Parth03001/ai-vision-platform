@@ -3,13 +3,15 @@ import axios from 'axios';
 import './LoginPage.css';
 
 import { API_URL } from '../config';
+import { Eye, EyeOff, ArrowRight, Zap, Target, Pencil, Rocket, AlertTriangle } from 'lucide-react';
+import logoImg from '../logo.png';
 
 // ── Left panel feature list ──────────────────────────────────────
 const FEATURES = [
-    { icon: '✏️', title: 'Precise Annotation', desc: 'Draw bounding boxes on any image with pixel-perfect control.' },
-    { icon: '⚡', title: 'Auto-Label with AI', desc: 'Let a seed YOLO model annotate hundreds of images in seconds.' },
-    { icon: '🚀', title: 'One-Click Training', desc: 'Train YOLO11 · v10 · v9 · v8 with live loss charts & metrics.' },
-    { icon: '🎯', title: 'Full Pipeline', desc: 'Seed → Auto-Annotate → Main Model. Automated job queuing.' },
+    { icon: <Pencil size={16} />, title: 'Precise Annotation', desc: 'Draw bounding boxes on any image with pixel-perfect control.' },
+    { icon: <Zap size={16} />, title: 'Auto-Label with AI', desc: 'Let a seed YOLO model annotate hundreds of images in seconds.' },
+    { icon: <Rocket size={16} />, title: 'One-Click Training', desc: 'Train YOLO11 · v10 · v9 · v8 with live loss charts & metrics.' },
+    { icon: <Target size={16} />, title: 'Full Pipeline', desc: 'Seed → Auto-Annotate → Main Model. Automated job queuing.' },
 ];
 
 // ── Left Panel ───────────────────────────────────────────────────
@@ -26,7 +28,7 @@ const LeftPanel = () => (
         <div className="lp2-left-content">
             {/* Brand */}
             <div className="lp2-brand">
-                <span className="lp2-brand-icon">◈</span>
+                <span className="lp2-brand-icon"><Eye size={22} /></span>
                 <span className="lp2-brand-name">AI Vision Platform</span>
             </div>
 
@@ -53,7 +55,7 @@ const LeftPanel = () => (
                     {/* Fake image with bounding boxes */}
                     <div className="lp2-fake-img">
                         <div className="lp2-bbox lp2-bbox--person">
-                            <span className="lp2-bbox-tag" style={{ background: '#6366f1' }}>person</span>
+                            <span className="lp2-bbox-tag" style={{ background: '#dc143c' }}>person</span>
                         </div>
                         <div className="lp2-bbox lp2-bbox--car">
                             <span className="lp2-bbox-tag" style={{ background: '#f59e0b' }}>car</span>
@@ -64,8 +66,8 @@ const LeftPanel = () => (
                     </div>
                 </div>
                 <div className="lp2-mockup-footer">
-                    <span className="lp2-tag" style={{ borderColor: '#6366f180' }}>
-                        <span className="lp2-tag-dot" style={{ background: '#6366f1' }} />person
+                    <span className="lp2-tag" style={{ borderColor: '#dc143c80' }}>
+                        <span className="lp2-tag-dot" style={{ background: '#dc143c' }} />person
                     </span>
                     <span className="lp2-tag" style={{ borderColor: '#f59e0b80' }}>
                         <span className="lp2-tag-dot" style={{ background: '#f59e0b' }} />car
@@ -144,6 +146,11 @@ const LoginPage = ({ defaultTab = 'login', onSuccess, onBack }) => {
                     ← Home
                 </button>
 
+                {/* Logo top-right */}
+                <div className="lp2-logo">
+                    <img src={logoImg} alt="Logo" style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
+                </div>
+
                 <div className="lp2-form-wrap">
                     {/* Tabs */}
                     <div className="lp2-tabs">
@@ -164,7 +171,7 @@ const LoginPage = ({ defaultTab = 'login', onSuccess, onBack }) => {
                     {/* Heading */}
                     <div className="lp2-form-heading">
                         <h1>
-                            {tab === 'login' ? 'Welcome back 👋' : 'Get started free 🚀'}
+                            {tab === 'login' ? 'Welcome back' : 'Get started free'}
                         </h1>
                         <p>
                             {tab === 'login'
@@ -176,7 +183,7 @@ const LoginPage = ({ defaultTab = 'login', onSuccess, onBack }) => {
                     {/* Error */}
                     {error && (
                         <div className="lp2-error">
-                            <span>⚠</span>
+                            <AlertTriangle size={15} />
                             <span>{error}</span>
                         </div>
                     )}
@@ -230,7 +237,7 @@ const LoginPage = ({ defaultTab = 'login', onSuccess, onBack }) => {
                                     tabIndex={-1}
                                     title={showPass ? 'Hide' : 'Show'}
                                 >
-                                    {showPass ? '🙈' : '👁'}
+                                    {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                                 </button>
                             </div>
                         </div>
@@ -242,7 +249,7 @@ const LoginPage = ({ defaultTab = 'login', onSuccess, onBack }) => {
                         >
                             {loading
                                 ? (tab === 'login' ? 'Signing in…' : 'Creating account…')
-                                : (tab === 'login' ? 'Sign In →' : 'Create Account →')}
+                                : (tab === 'login' ? 'Sign In' : 'Create Account')}
                         </button>
                     </form>
 

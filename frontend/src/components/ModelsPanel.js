@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { Eye, Leaf, Target, X, RefreshCw, Brain, HardDrive, TrendingUp, Calendar, Download, RotateCcw, Info, Check, Circle } from 'lucide-react';
 import './ModelsPanel.css';
+import logoImg from '../logo.png';
 
 import { API_URL } from '../config';
 
@@ -112,20 +114,20 @@ function ModelCard({ type, data, onTrain, onDownload, downloading }) {
         seed: {
             label: 'Seed Model',
             desc: 'Fast annotation model trained on your labeled data',
-            icon: '🌱',
-            accent: ['#06b6d4', '#3b82f6'],
-            light: 'rgba(6,182,212,0.1)',
-            sparkColor: '#38bdf8',
-            trainLabel: '🚀 Train Seed Model',
+            icon: <Leaf size={20} />,
+            accent: ['#dc143c', '#f87171'],
+            light: 'rgba(220,20,60,0.08)',
+            sparkColor: '#dc143c',
+            trainLabel: <><Leaf size={14} /> Train Seed Model</>,
         },
         main: {
             label: 'Main Model',
             desc: 'High-accuracy production model for final deployment',
-            icon: '🎯',
-            accent: ['#6366f1', '#8b5cf6'],
-            light: 'rgba(99,102,241,0.1)',
-            sparkColor: '#a5b4fc',
-            trainLabel: '🎯 Train Main Model',
+            icon: <Target size={20} />,
+            accent: ['#b8102e', '#dc143c'],
+            light: 'rgba(184,16,46,0.08)',
+            sparkColor: '#b8102e',
+            trainLabel: <><Target size={14} /> Train Main Model</>,
         },
     }[type];
 
@@ -155,7 +157,7 @@ function ModelCard({ type, data, onTrain, onDownload, downloading }) {
                     <p className="mp-card-desc">{config.desc}</p>
                 </div>
                 <div className={`mp-card-status ${exists ? 'mp-card-status--ok' : 'mp-card-status--none'}`}>
-                    {exists ? '✓ Trained' : '○ Not trained'}
+                    {exists ? <><Check size={14} /> Trained</> : <><Circle size={14} /> Not trained</>}
                 </div>
             </div>
 
@@ -165,20 +167,20 @@ function ModelCard({ type, data, onTrain, onDownload, downloading }) {
                     <div className="mp-card-tags">
                         {meta.modelName && (
                             <span className="mp-tag mp-tag--model">
-                                🧠 {friendlyModel(meta.modelName)}
+                                <Brain size={12} /> {friendlyModel(meta.modelName)}
                             </span>
                         )}
                         <span className="mp-tag mp-tag--size">
-                            💾 {fmtSize(data.file_size_mb)}
+                            <HardDrive size={12} /> {fmtSize(data.file_size_mb)}
                         </span>
                         {epochs && (
                             <span className="mp-tag mp-tag--epoch">
-                                📈 {epochs} epochs
+                                <TrendingUp size={12} /> {epochs} epochs
                             </span>
                         )}
                         {job?.finished_at && (
                             <span className="mp-tag mp-tag--date">
-                                🗓 {fmtDate(job.finished_at)}
+                                <Calendar size={12} /> {fmtDate(job.finished_at)}
                             </span>
                         )}
                     </div>
@@ -228,11 +230,11 @@ function ModelCard({ type, data, onTrain, onDownload, downloading }) {
                         >
                             {downloading === type
                                 ? <><span className="mp-spinner" />Downloading…</>
-                                : <>⬇ Download weights</>
+                                : <><Download size={14} /> Download</>
                             }
                         </button>
                         <button className="mp-btn-retrain" onClick={() => onTrain(type)}>
-                            ↺ Re-train
+                            <RotateCcw size={14} /> Re-train
                         </button>
                     </div>
                 </>
@@ -240,7 +242,7 @@ function ModelCard({ type, data, onTrain, onDownload, downloading }) {
                 /* Not trained state */
                 <div className="mp-card-empty">
                     <div className="mp-card-empty-icon" style={{ color: config.accent[0] }}>
-                        {isSeed ? '🌱' : '🎯'}
+                        {isSeed ? <Leaf size={36} /> : <Target size={36} />}
                     </div>
                     <p className="mp-card-empty-text">
                         No trained model yet.<br />
@@ -313,7 +315,8 @@ const ModelsPanel = ({ project, onClose, onGoToTrain }) => {
                 {/* ── Panel header ───────────────────────────── */}
                 <div className="mp-header">
                     <div className="mp-header-left">
-                        <div className="mp-header-icon">◈</div>
+                        <img src={logoImg} alt="Logo" style={{ height: 32, objectFit: 'contain' }} />
+                        <div className="mp-header-icon"><Eye size={20} /></div>
                         <div>
                             <h2 className="mp-header-title">Trained Models</h2>
                             <p className="mp-header-sub">{project.name}</p>
@@ -321,12 +324,9 @@ const ModelsPanel = ({ project, onClose, onGoToTrain }) => {
                     </div>
                     <div className="mp-header-actions">
                         <button className="mp-btn-refresh" onClick={load} title="Refresh">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                <path d="M1 4v6h6"/><path d="M23 20v-6h-6"/>
-                                <path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/>
-                            </svg>
+                            <RefreshCw size={15} />
                         </button>
-                        <button className="mp-btn-close" onClick={onClose}>✕</button>
+                        <button className="mp-btn-close" onClick={onClose}><X size={18} /></button>
                     </div>
                 </div>
 
@@ -335,7 +335,7 @@ const ModelsPanel = ({ project, onClose, onGoToTrain }) => {
                     {error && (
                         <div className="mp-error">
                             <span>⚠</span> {error}
-                            <button onClick={() => setError(null)}>×</button>
+                            <button onClick={() => setError(null)}><X size={16} /></button>
                         </div>
                     )}
 
@@ -367,21 +367,21 @@ const ModelsPanel = ({ project, onClose, onGoToTrain }) => {
                     {!loading && details && (
                         <div className="mp-tips">
                             <div className="mp-tip">
-                                <span className="mp-tip-icon">💡</span>
+                                <span className="mp-tip-icon"><Info size={14} /></span>
                                 <div>
                                     <strong>Seed model</strong> — used by Auto-Annotate to generate bounding boxes quickly.
                                     Train it first.
                                 </div>
                             </div>
                             <div className="mp-tip">
-                                <span className="mp-tip-icon">🎯</span>
+                                <span className="mp-tip-icon"><Info size={14} /></span>
                                 <div>
                                     <strong>Main model</strong> — your final deployment model.
                                     Can fine-tune from seed weights for faster convergence.
                                 </div>
                             </div>
                             <div className="mp-tip">
-                                <span className="mp-tip-icon">📊</span>
+                                <span className="mp-tip-icon"><Info size={14} /></span>
                                 <div>
                                     <strong>mAP@50 ≥ 70%</strong> is considered good. Aim for
                                     mAP@50-95 ≥ 50% for production use.

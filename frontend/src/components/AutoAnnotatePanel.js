@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import './AutoAnnotatePanel.css';
+import { Sparkles, X, RefreshCw, Square, AlertTriangle, Check, ChevronLeft, Clock, Clipboard } from 'lucide-react';
+import logoImg from '../logo.png';
 
 import { API_URL, BASE_URL } from '../config';
 const IMG_URL  = BASE_URL;
@@ -42,7 +44,7 @@ const ImageThumb = ({ img, checked, onChange }) => (
             />
         </div>
         <span className="aap-img-name">{img.filename}</span>
-        {checked && <span className="aap-img-check">✓</span>}
+        {checked && <span className="aap-img-check"><Check size={12} /></span>}
     </label>
 );
 
@@ -74,7 +76,7 @@ const ProgressBar = ({ progress }) => {
                     <span className="aap-stat aap-stat--warn">⬜ {noDetect} no detection</span>
                 )}
                 {skipped > 0 && (
-                    <span className="aap-stat aap-stat--err">⚠️ {skipped} file not found</span>
+                    <span className="aap-stat aap-stat--err"><AlertTriangle size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }} /> {skipped} file not found</span>
                 )}
             </div>
         </div>
@@ -406,13 +408,14 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
                 {/* ── Header ── */}
                 <div className="aap-header">
                     <div className="aap-header-left">
-                        <span className="aap-header-icon">✨</span>
+                        <span className="aap-header-icon"><Sparkles size={20} /></span>
                         <div>
                             <h2 className="aap-title">Auto-Annotate</h2>
                             <p className="aap-subtitle">{project.name}</p>
                         </div>
                     </div>
-                    <button className="aap-close" onClick={onClose}>✕</button>
+                    <img src={logoImg} alt="Logo" style={{ height: 32, width: 'auto', objectFit: 'contain' }} />
+                    <button className="aap-close" onClick={onClose}><X size={18} /></button>
                 </div>
 
                 {/* ── Tabs ── */}
@@ -462,7 +465,7 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
                                         <button className="aap-select-btn" onClick={selectAll}>All</button>
                                         <button className="aap-select-btn" onClick={selectNone}>None</button>
                                         <span className="aap-selected-count">{selectedIds.size} selected</span>
-                                        <button className="aap-refresh-btn" onClick={loadSetup} title="Refresh">↻</button>
+                                        <button className="aap-refresh-btn" onClick={loadSetup} title="Refresh"><RefreshCw size={16} /></button>
                                     </div>
                                 </div>
 
@@ -470,7 +473,7 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
                                     <div className="aap-loading"><div className="aap-spinner" /><span>Loading images…</span></div>
                                 ) : pendingImages.length === 0 ? (
                                     <div className="aap-empty">
-                                        <span>🎉</span>
+                                        <span><Sparkles size={32} /></span>
                                         <p>All images are already annotated!</p>
                                     </div>
                                 ) : (
@@ -513,7 +516,7 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
                                 <p className="aap-section-title">Worker Required</p>
                                 <div className="aap-cmd-block">
                                     <code>celery -A app.tasks.celery_app:celery_app worker --loglevel=info</code>
-                                    <button className="aap-cmd-copy" onClick={() => navigator.clipboard.writeText('celery -A app.tasks.celery_app:celery_app worker --loglevel=info')}>⎘</button>
+                                    <button className="aap-cmd-copy" onClick={() => navigator.clipboard.writeText('celery -A app.tasks.celery_app:celery_app worker --loglevel=info')}><Clipboard size={14} /></button>
                                 </div>
                             </section>
                         </>
@@ -523,7 +526,7 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
                     {view === 'jobs' && (
                         jobs.length === 0 ? (
                             <div className="aap-jobs-empty">
-                                <span>📭</span>
+                                <span><X size={32} /></span>
                                 <p>No jobs yet. Select images in Setup and click Start.</p>
                             </div>
                         ) : (
@@ -587,7 +590,7 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
                                         {/* Result */}
                                         {activeJob.status === 'SUCCESS' && activeJob.result && (
                                             <div className="aap-result-card">
-                                                <span className="aap-result-icon">✅</span>
+                                                <span className="aap-result-icon"><Check size={22} /></span>
                                                 <div style={{ flex: 1 }}>
                                                     <p className="aap-result-title">
                                                         {activeJob.result.annotated_count} / {activeJob.result.total} images annotated
@@ -600,7 +603,7 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
                                                         )}
                                                         {(activeJob.result.skipped_path > 0) && (
                                                             <span className="aap-stat aap-stat--err">
-                                                                ⚠️ {activeJob.result.skipped_path} file not found
+                                                                <AlertTriangle size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }} /> {activeJob.result.skipped_path} file not found
                                                             </span>
                                                         )}
                                                     </div>
@@ -621,10 +624,10 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
                                         {/* No worker */}
                                         {activeJob.status === 'NO_WORKER' && (
                                             <div className="aap-worker-err">
-                                                <p>⚠️ Worker not found. Start it then try again:</p>
+                                                <p>Worker not found. Start it then try again:</p>
                                                 <div className="aap-cmd-block" style={{ marginTop: 8 }}>
                                                     <code>celery -A app.tasks.celery_app:celery_app worker --loglevel=info</code>
-                                                    <button className="aap-cmd-copy" onClick={() => navigator.clipboard.writeText('celery -A app.tasks.celery_app:celery_app worker --loglevel=info')}>⎘</button>
+                                                    <button className="aap-cmd-copy" onClick={() => navigator.clipboard.writeText('celery -A app.tasks.celery_app:celery_app worker --loglevel=info')}><Clipboard size={14} /></button>
                                                 </div>
                                             </div>
                                         )}
@@ -640,17 +643,17 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
                     {view === 'setup' ? (
                         <button className="aap-start-btn" onClick={handleStart} disabled={!canStart}>
                             {launching
-                                ? '⏳ Starting…'
-                                : `✨ Auto-Annotate ${selectedIds.size > 0 ? `${selectedIds.size} Image${selectedIds.size !== 1 ? 's' : ''}` : ''}`}
+                                ? 'Starting…'
+                                : <><Sparkles size={16} /> Auto-Annotate {selectedIds.size > 0 ? `${selectedIds.size} Image${selectedIds.size !== 1 ? 's' : ''}` : ''}</>}
                         </button>
                     ) : (
                         <button className="aap-start-btn aap-start-btn--secondary" onClick={() => { setView('setup'); loadSetup(); }}>
-                            ← Back to Setup
+                            <ChevronLeft size={16} /> Back to Setup
                         </button>
                     )}
                     {anyRunning && (
                         <button className="aap-stop-btn" onClick={handleStop} title="Stop annotation">
-                            ⏹ Stop
+                            <Square size={14} /> Stop
                         </button>
                     )}
                 </div>
