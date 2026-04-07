@@ -252,6 +252,9 @@
   cursor: pointer;
   transition: all 0.15s;
   text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
 
 .btn-action:hover:not(:disabled) {

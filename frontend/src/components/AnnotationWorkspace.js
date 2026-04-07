@@ -11,7 +11,7 @@ import ReviewPanel from './ReviewPanel';
 import VideoPanel from './VideoPanel';
 import ActiveLearningPanel from './ActiveLearningPanel';
 import './AnnotationWorkspace.css';
-import { Sparkles, AlertTriangle, X, Upload, Image as ImageIcon, Check, ArrowLeft, ArrowRight, Brain } from 'lucide-react';
+import { Sparkles, AlertTriangle, X, Upload, Image as ImageIcon, Check, ArrowLeft, ArrowRight, Brain, Rocket, Eye, Target, Tag, Package, Film } from 'lucide-react';
 import logoImg from '../logo.png';
 
 import { API_URL } from '../config';
@@ -541,37 +541,36 @@ Do you want to proceed?`;
                         <img src={logoImg} alt="Logo" style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
                     </div>
                     <button className="btn-action" onClick={() => setShowTrainingPanel(true)}>
-                        Train Seed Model
+                        <Rocket size={14} /> Train Seed Model
                     </button>
                     <button className="btn-action btn-action-secondary" onClick={startAutoAnnotation}>
-                        Auto-Annotate
+                        <Sparkles size={14} /> Auto-Annotate
                     </button>
                     <button className="btn-action btn-action-al" onClick={() => setShowActiveLearningPanel(true)}>
-                        <Brain size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: 'middle' }} />
-                        Active Learning
+                        <Brain size={14} /> Active Learning
                     </button>
                     <button
                         className="btn-action btn-action-review"
                         onClick={() => setShowReviewPanel(true)}
                         disabled={images.filter(img => img.status === 'annotated').length === 0}
                     >
-                        Review Annotations
+                        <Eye size={14} /> Review Annotations
                     </button>
                     <button className="btn-action btn-action-main" onClick={() => setShowMainTrainingPanel(true)}>
-                        Train Main Model
+                        <Target size={14} /> Train Main Model
                     </button>
                     <button className="btn-action btn-action-labels" onClick={() => setShowLabelsPanel(true)}>
-                        Edit Labels
+                        <Tag size={14} /> Edit Labels
                     </button>
                     <button className="btn-action btn-action-models" onClick={() => setShowModelsPanel(true)}>
-                        View Models
+                        <Package size={14} /> View Models
                     </button>
                 </div>
 
                 <div className="sidebar-section">
                     <p className="sidebar-label">Images ({images.length})</p>
                     <button className="btn-action btn-action-video" onClick={() => setShowVideoPanel(true)}>
-                        Import Video
+                        <Film size={14} /> Import Video
                     </button>
                     <label className={`upload-btn ${uploading ? 'uploading' : ''}`}>
                         {uploading

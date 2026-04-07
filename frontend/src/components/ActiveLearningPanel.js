@@ -428,7 +428,6 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
                 {/* ── Header ── */}
                 <div className="alp-header">
                     <div className="alp-header-left">
-                        <span className="alp-header-icon"><Brain size={22} /></span>
                         <div>
                             <h2 className="alp-title">Active Learning</h2>
                             <p className="alp-subtitle">{project.name}</p>
