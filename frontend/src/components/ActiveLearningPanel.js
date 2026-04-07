@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import './ActiveLearningPanel.css';
+import {
+    Brain, Target, Layers, BarChart2, X, RefreshCw,
+    Clipboard, Square, ChevronLeft, AlertTriangle,
+    Check, Zap, Inbox, Play, Circle,
+} from 'lucide-react';
 
 import { API_URL } from '../config';
 
@@ -17,16 +22,31 @@ const STATUS_LABEL = {
 };
 
 const MODES = [
-    { id: 'suggest',    icon: '🎯', label: 'Suggest to Annotate',      desc: 'Find the most uncertain images to label manually' },
-    { id: 'curriculum', icon: '🎓', label: 'Curriculum Auto-Annotate', desc: 'Smart auto-annotation with 3 confidence tiers' },
-    { id: 'score',      icon: '📊', label: 'Score All Images',          desc: 'Rank all pending images by uncertainty' },
+    {
+        id: 'suggest',
+        Icon: Target,
+        label: 'Suggest to Annotate',
+        desc: 'Find the most uncertain images to label manually',
+    },
+    {
+        id: 'curriculum',
+        Icon: Layers,
+        label: 'Curriculum Auto-Annotate',
+        desc: 'Smart auto-annotation with 3 confidence tiers',
+    },
+    {
+        id: 'score',
+        Icon: BarChart2,
+        label: 'Score All Images',
+        desc: 'Rank all pending images by uncertainty',
+    },
 ];
 
 const STRATEGIES = [
-    { id: 'combined',   label: 'Combined',          desc: 'Confidence + Entropy + TTA (recommended)' },
-    { id: 'confidence', label: 'Confidence',         desc: 'Lowest detection confidence first' },
-    { id: 'entropy',    label: 'Entropy',            desc: 'Highest class confusion first' },
-    { id: 'tta',        label: 'TTA Disagreement',   desc: 'Most unstable predictions first' },
+    { id: 'combined',   label: 'Combined',        desc: 'Confidence + Entropy + TTA (recommended)' },
+    { id: 'confidence', label: 'Confidence',       desc: 'Lowest detection confidence first' },
+    { id: 'entropy',    label: 'Entropy',          desc: 'Highest class confusion first' },
+    { id: 'tta',        label: 'TTA Disagreement', desc: 'Most unstable predictions first' },
 ];
 
 const fmtTime = (d) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -50,7 +70,9 @@ const ScoreResultTable = ({ items, label }) => {
     if (!items || items.length === 0) return null;
     return (
         <div className="alp-result-table-wrap">
-            <div className="alp-result-table-title">{label} <span className="alp-result-count">({items.length})</span></div>
+            <div className="alp-result-table-title">
+                {label} <span className="alp-result-count">({items.length})</span>
+            </div>
             <div className="alp-result-table">
                 {items.map((item, i) => (
                     <div key={item.image_id || i} className="alp-result-row">
@@ -76,6 +98,7 @@ const ScoreResultTable = ({ items, label }) => {
 // ── CurriculumResult ─────────────────────────────────────────────
 const CurriculumResult = ({ result }) => {
     if (!result) return null;
+    const skipped = (result.skipped_low_conf ?? 0) + (result.skipped_no_det ?? 0);
     return (
         <div className="alp-curriculum-result">
             <div className="alp-curriculum-result-title">Results</div>
@@ -91,12 +114,12 @@ const CurriculumResult = ({ result }) => {
                     <span className="alp-curr-sub">source: auto_review</span>
                 </div>
                 <div className="alp-curr-stat alp-curr-stat--skip">
-                    <span className="alp-curr-num">{(result.skipped_low_conf ?? 0) + (result.skipped_no_det ?? 0)}</span>
+                    <span className="alp-curr-num">{skipped}</span>
                     <span className="alp-curr-label">Skipped</span>
-                    <span className="alp-curr-sub">manual annotation needed</span>
+                    <span className="alp-curr-sub">manual needed</span>
                 </div>
             </div>
-            {((result.skipped_low_conf ?? 0) + (result.skipped_no_det ?? 0)) > 0 && (
+            {skipped > 0 && (
                 <p className="alp-curr-hint">
                     Skipped images are still pending — use <strong>Suggest to Annotate</strong> to find which ones to label manually.
                 </p>
@@ -109,19 +132,20 @@ const CurriculumResult = ({ result }) => {
 //  ActiveLearningPanel
 // ════════════════════════════════════════════════════════════
 const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
-    const [view, setView]             = useState('setup');
+    const [view, setView]               = useState('setup');
     const [modelStatus, setModelStatus] = useState(null);
-    const [mode, setMode]             = useState('suggest');
-    const [strategy, setStrategy]     = useState('combined');
-    const [budget, setBudget]         = useState(10);
-    const [topK, setTopK]             = useState(0);
-    const [modelType, setModelType]   = useState('seed');
-    const [highConf, setHighConf]     = useState(0.60);
-    const [lowConf, setLowConf]       = useState(0.25);
-    const [useTta, setUseTta]         = useState(false);
-    const [jobs, setJobs]             = useState([]);
+    const [mode, setMode]               = useState('suggest');
+    const [strategy, setStrategy]       = useState('combined');
+    const [budget, setBudget]           = useState(10);
+    const [topK, setTopK]               = useState(0);
+    const [modelType, setModelType]     = useState('seed');
+    const [highConf, setHighConf]       = useState(0.60);
+    const [lowConf, setLowConf]         = useState(0.25);
+    const [useTta, setUseTta]           = useState(false);
+    const [jobs, setJobs]               = useState([]);
     const [activeJobId, setActiveJobId] = useState(null);
-    const [launching, setLaunching]   = useState(false);
+    const [launching, setLaunching]     = useState(false);
+    const [copied, setCopied]           = useState(false);
 
     const pollRef = useRef({});
     const jobsRef = useRef(jobs);
@@ -155,7 +179,6 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
                     startedAt: new Date(j.created_at),
                 }));
 
-                // Reconcile all active jobs before rendering — avoids status flicker
                 const reconciled = await Promise.all(loaded.map(async (job) => {
                     if (job.status !== 'PENDING' && job.status !== 'STARTED') return job;
                     try {
@@ -163,7 +186,7 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
                         const { status: celery, result, error } = sr.data;
 
                         if (celery === 'SUCCESS') {
-                            const newLogs = [...job.logs, '✅  Done! (completed while panel was closed)'];
+                            const newLogs = [...job.logs, '✓ Done! (completed while panel was closed)'];
                             axios.patch(`${API_URL}/pipeline/jobs/${job.taskId}`, {
                                 status: 'success',
                                 result_meta: { mode: job.mode, config: job.config, logs: newLogs, result },
@@ -173,7 +196,7 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
                             return { ...job, status: 'SUCCESS', result, logs: newLogs };
 
                         } else if (celery === 'FAILURE') {
-                            const newLogs = [...job.logs, `❌  Failed: ${error || 'Unknown error'}`];
+                            const newLogs = [...job.logs, `Failed: ${error || 'Unknown error'}`];
                             axios.patch(`${API_URL}/pipeline/jobs/${job.taskId}`, {
                                 status: 'failure',
                                 result_meta: { mode: job.mode, config: job.config, logs: newLogs, error },
@@ -182,7 +205,7 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
                             return { ...job, status: 'FAILURE', error, logs: newLogs };
 
                         } else if (celery === 'PENDING' && job.status === 'STARTED') {
-                            const newLogs = [...job.logs, '⚠️  Task result expired (panel was closed before it finished).'];
+                            const newLogs = [...job.logs, 'Task result expired (panel was closed before it finished).'];
                             axios.patch(`${API_URL}/pipeline/jobs/${job.taskId}`, {
                                 status: 'failure',
                                 result_meta: { mode: job.mode, config: job.config, logs: newLogs },
@@ -214,7 +237,6 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loadSetup, loadPersistedJobs]);
 
-    // Auto-scroll logs
     useEffect(() => {
         if (logsEnd.current) logsEnd.current.scrollIntoView({ behavior: 'smooth' });
     }, [jobs, activeJobId]);
@@ -222,7 +244,7 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
     // ── Polling ───────────────────────────────────────────────
     const startPolling = useCallback((taskId, jobMode) => {
         if (pollRef.current[taskId]) clearInterval(pollRef.current[taskId]);
-        let pendingTicks    = 0;
+        let pendingTicks     = 0;
         let startedPersisted = false;
 
         pollRef.current[taskId] = setInterval(async () => {
@@ -230,7 +252,6 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
                 const res = await axios.get(`${API_URL}/pipeline/task-status/${taskId}`);
                 const { status, result, meta, error } = res.data;
 
-                // Compute NO_WORKER outside setJobs to avoid double-triggers
                 let isNoWorker = false;
                 if (status === 'PENDING') {
                     pendingTicks++;
@@ -239,7 +260,7 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
                     pendingTicks = 0;
                 }
 
-                // All side effects BEFORE setJobs (pure updater)
+                // All side effects BEFORE setJobs
                 if (status === 'SUCCESS' || status === 'FAILURE' || isNoWorker) {
                     clearInterval(pollRef.current[taskId]);
                     delete pollRef.current[taskId];
@@ -253,7 +274,7 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
                 if (status === 'SUCCESS') {
                     const j = jobsRef.current.find(j => j.taskId === taskId);
                     if (j) {
-                        const successLogs = [...j.logs, '✅  Done!'];
+                        const successLogs = [...j.logs, '✓ Done!'];
                         axios.patch(`${API_URL}/pipeline/jobs/${taskId}`, {
                             status: 'success',
                             result_meta: {
@@ -270,7 +291,7 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
                 if (status === 'FAILURE') {
                     const j = jobsRef.current.find(j => j.taskId === taskId);
                     if (j) {
-                        const failLogs = [...j.logs, `❌  Failed: ${error || 'Unknown error'}`];
+                        const failLogs = [...j.logs, `Failed: ${error || 'Unknown error'}`];
                         axios.patch(`${API_URL}/pipeline/jobs/${taskId}`, {
                             status: 'failure',
                             result_meta: {
@@ -282,37 +303,36 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
                     }
                 }
 
-                // Pure state update — no side effects inside
                 setJobs(prev => prev.map(j => {
                     if (j.taskId !== taskId) return j;
                     let newLogs = [...j.logs];
 
                     if (status === 'PENDING') {
                         if (isNoWorker) {
-                            return { ...j, status: 'NO_WORKER', logs: [...newLogs, '❌  No worker detected after 37s.', '👉  Start Celery worker first.'] };
+                            return { ...j, status: 'NO_WORKER', logs: [...newLogs, 'No worker detected after 37s.', 'Start Celery worker first.'] };
                         }
-                        const msg  = `⏳  Waiting for worker… (${pendingTicks * 2}s)`;
+                        const msg  = `Waiting for worker… (${pendingTicks * 2}s)`;
                         const last = newLogs[newLogs.length - 1];
-                        newLogs = last?.startsWith('⏳') ? [...newLogs.slice(0, -1), msg] : [...newLogs, msg];
+                        newLogs = last?.startsWith('Waiting') ? [...newLogs.slice(0, -1), msg] : [...newLogs, msg];
                         return { ...j, status: 'PENDING', logs: newLogs };
                     }
 
                     if (status === 'STARTED') {
                         const progress = meta || j.progress;
                         if (meta?.current) {
-                            const entry = `🔍  [${meta.current}/${meta.total}] Scoring images…`;
+                            const entry = `Scoring [${meta.current}/${meta.total}]…`;
                             const last  = newLogs[newLogs.length - 1];
-                            newLogs = last?.startsWith('🔍') ? [...newLogs.slice(0, -1), entry] : [...newLogs, entry];
+                            newLogs = last?.startsWith('Scoring') ? [...newLogs.slice(0, -1), entry] : [...newLogs, entry];
                         }
                         return { ...j, status: 'STARTED', progress, logs: newLogs };
                     }
 
                     if (status === 'SUCCESS') {
-                        return { ...j, status: 'SUCCESS', result, logs: [...newLogs, '✅  Done!'] };
+                        return { ...j, status: 'SUCCESS', result, logs: [...newLogs, '✓ Done!'] };
                     }
 
                     if (status === 'FAILURE') {
-                        return { ...j, status: 'FAILURE', error, logs: [...newLogs, `❌  Failed: ${error || 'Unknown error'}`] };
+                        return { ...j, status: 'FAILURE', error, logs: [...newLogs, `Failed: ${error || 'Unknown error'}`] };
                     }
 
                     return j;
@@ -332,9 +352,16 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
         }
         setJobs(prev => prev.map(j =>
             j.taskId === job.taskId
-                ? { ...j, status: 'FAILURE', logs: [...j.logs, '🛑  Stopped by user.'] }
+                ? { ...j, status: 'FAILURE', logs: [...j.logs, 'Stopped by user.'] }
                 : j
         ));
+    };
+
+    // ── Copy celery command ───────────────────────────────────
+    const handleCopy = () => {
+        navigator.clipboard.writeText('celery -A app.tasks.celery_app:celery_app worker --loglevel=info');
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
     };
 
     // ── Launch job ────────────────────────────────────────────
@@ -358,7 +385,7 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
         } else if (mode === 'score') {
             endpoint = `${API_URL}/pipeline/active-learning/score/${project.id}`;
             body = { model_type: modelType, strategy, top_k: topK, use_tta: useTta };
-            jobConfig.top_k     = topK;
+            jobConfig.top_k      = topK;
             jobConfig.model_type = modelType;
         }
 
@@ -368,7 +395,6 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
             const job    = makeJob(taskId, mode, jobConfig);
             setJobs(prev => [...prev, job]);
             setActiveJobId(job.id);
-            // Persist so jobs survive page reload
             axios.post(`${API_URL}/pipeline/jobs`, {
                 task_id: taskId, project_id: project.id, job_type: 'active_learning',
                 result_meta: { mode, config: jobConfig, logs: job.logs, startedAt: job.startedAt.toISOString() },
@@ -377,7 +403,7 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
         } catch {
             const failJob = {
                 id: Date.now(), taskId: null, mode, config: jobConfig,
-                status: 'FAILURE', logs: ['❌  Failed to launch job.'],
+                status: 'FAILURE', logs: ['Failed to launch job.'],
                 progress: null, result: null, error: 'Launch failed', startedAt: new Date(),
             };
             setJobs(prev => [...prev, failJob]);
@@ -388,12 +414,12 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
     };
 
     // ── Derived ───────────────────────────────────────────────
-    const activeJob    = jobs.find(j => j.id === activeJobId) || jobs[jobs.length - 1] || null;
-    const anyRunning   = jobs.some(j => j.status === 'PENDING' || j.status === 'STARTED');
-    const hasSeed      = modelStatus?.has_seed_model;
-    const hasMain      = modelStatus?.has_main_model;
-    const modelNeeded  = mode === 'score' ? (modelType === 'seed' ? hasSeed : hasMain) : hasSeed;
-    const canStart     = modelNeeded && !launching;
+    const activeJob   = jobs.find(j => j.id === activeJobId) || jobs[jobs.length - 1] || null;
+    const anyRunning  = jobs.some(j => j.status === 'PENDING' || j.status === 'STARTED');
+    const hasSeed     = modelStatus?.has_seed_model;
+    const hasMain     = modelStatus?.has_main_model;
+    const modelNeeded = mode === 'score' ? (modelType === 'seed' ? hasSeed : hasMain) : hasSeed;
+    const canStart    = modelNeeded && !launching;
 
     return (
         <div className="alp-overlay" onClick={onClose}>
@@ -402,13 +428,13 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
                 {/* ── Header ── */}
                 <div className="alp-header">
                     <div className="alp-header-left">
-                        <span className="alp-header-icon">🧠</span>
+                        <span className="alp-header-icon"><Brain size={22} /></span>
                         <div>
                             <h2 className="alp-title">Active Learning</h2>
                             <p className="alp-subtitle">{project.name}</p>
                         </div>
                     </div>
-                    <button className="alp-close" onClick={onClose}>✕</button>
+                    <button className="alp-close" onClick={onClose}><X size={16} /></button>
                 </div>
 
                 {/* ── Tabs ── */}
@@ -436,14 +462,16 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
                                 ) : (
                                     <div className="alp-model-row">
                                         <div className={`alp-model-chip ${hasSeed ? 'alp-model-chip--ok' : 'alp-model-chip--miss'}`}>
-                                            <span className={`alp-model-dot ${hasSeed ? 'alp-model-dot--green' : 'alp-model-dot--red'}`} />
+                                            <Circle size={8} className={hasSeed ? 'alp-dot-green' : 'alp-dot-red'} fill="currentColor" />
                                             Seed Model
                                         </div>
                                         <div className={`alp-model-chip ${hasMain ? 'alp-model-chip--ok' : 'alp-model-chip--miss'}`}>
-                                            <span className={`alp-model-dot ${hasMain ? 'alp-model-dot--green' : 'alp-model-dot--red'}`} />
+                                            <Circle size={8} className={hasMain ? 'alp-dot-green' : 'alp-dot-red'} fill="currentColor" />
                                             Main Model
                                         </div>
-                                        <button className="alp-refresh-btn" onClick={loadSetup} title="Refresh">↻</button>
+                                        <button className="alp-refresh-btn" onClick={loadSetup} title="Refresh">
+                                            <RefreshCw size={14} />
+                                        </button>
                                     </div>
                                 )}
                                 {!hasSeed && modelStatus != null && (
@@ -457,15 +485,17 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
                             <section className="alp-section">
                                 <p className="alp-section-title">Mode</p>
                                 <div className="alp-mode-grid">
-                                    {MODES.map(m => (
+                                    {MODES.map(({ id, Icon, label, desc }) => (
                                         <div
-                                            key={m.id}
-                                            className={`alp-mode-card ${mode === m.id ? 'alp-mode-card--active' : ''}`}
-                                            onClick={() => setMode(m.id)}
+                                            key={id}
+                                            className={`alp-mode-card ${mode === id ? 'alp-mode-card--active' : ''}`}
+                                            onClick={() => setMode(id)}
                                         >
-                                            <span className="alp-mode-icon">{m.icon}</span>
-                                            <span className="alp-mode-label">{m.label}</span>
-                                            <span className="alp-mode-desc">{m.desc}</span>
+                                            <span className="alp-mode-icon"><Icon size={16} /></span>
+                                            <div>
+                                                <span className="alp-mode-label">{label}</span>
+                                                <span className="alp-mode-desc">{desc}</span>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -542,7 +572,6 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
                                             <span className="alp-conf-val">{fmtPct(lowConf)}</span>
                                         </div>
                                     </div>
-                                    {/* Visual tier breakdown */}
                                     <div className="alp-tier-visual">
                                         <div className="alp-tier alp-tier--auto">≥{fmtPct(highConf)} → Auto-Accept</div>
                                         <div className="alp-tier alp-tier--review">{fmtPct(lowConf)}–{fmtPct(highConf)} → Review</div>
@@ -568,7 +597,7 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
                                                     className={`alp-model-type-btn ${modelType === mt ? 'alp-model-type-btn--active' : ''}`}
                                                     onClick={() => setModelType(mt)}
                                                 >
-                                                    {mt === 'seed' ? '🌱 Seed' : '🎯 Main'}
+                                                    {mt === 'seed' ? 'Seed Model' : 'Main Model'}
                                                 </button>
                                             ))}
                                         </div>
@@ -615,10 +644,9 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
                                 <p className="alp-section-title">Worker Required</p>
                                 <div className="alp-cmd-block">
                                     <code>celery -A app.tasks.celery_app:celery_app worker --loglevel=info</code>
-                                    <button
-                                        className="alp-cmd-copy"
-                                        onClick={() => navigator.clipboard.writeText('celery -A app.tasks.celery_app:celery_app worker --loglevel=info')}
-                                    >⎘</button>
+                                    <button className="alp-cmd-copy" onClick={handleCopy} title="Copy">
+                                        {copied ? <Check size={13} /> : <Clipboard size={13} />}
+                                    </button>
                                 </div>
                             </section>
                         </>
@@ -628,7 +656,7 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
                     {view === 'jobs' && (
                         jobs.length === 0 ? (
                             <div className="alp-jobs-empty">
-                                <span>🧠</span>
+                                <Inbox size={32} />
                                 <p>No jobs yet. Configure settings in Setup and click Run.</p>
                             </div>
                         ) : (
@@ -648,7 +676,10 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
                                                     <span className="alp-job-num">#{jobs.length - idx}</span>
                                                     <span className={`alp-job-badge ${info.cls}`}>{info.label}</span>
                                                 </div>
-                                                <div className="alp-job-meta">{modeInfo?.icon} {modeInfo?.label}</div>
+                                                <div className="alp-job-meta">
+                                                    {modeInfo && <modeInfo.Icon size={10} style={{ display: 'inline', marginRight: 3 }} />}
+                                                    {modeInfo?.label}
+                                                </div>
                                                 <div className="alp-job-time">{fmtTime(job.startedAt)}</div>
                                             </div>
                                         );
@@ -665,7 +696,7 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
                                             })()}
                                             <span className="alp-job-detail-time">{fmtTime(activeJob.startedAt)}</span>
                                             {(activeJob.status === 'PENDING' || activeJob.status === 'STARTED') && (
-                                                <span className="alp-live-badge">● Live</span>
+                                                <span className="alp-live-badge"><Circle size={6} fill="currentColor" /> Live</span>
                                             )}
                                         </div>
 
@@ -731,13 +762,15 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
                                         {/* No worker */}
                                         {activeJob.status === 'NO_WORKER' && (
                                             <div className="alp-worker-err">
-                                                <p>⚠️ Worker not found. Start it then try again:</p>
+                                                <div className="alp-worker-err-title">
+                                                    <AlertTriangle size={14} />
+                                                    Worker not found. Start it then try again:
+                                                </div>
                                                 <div className="alp-cmd-block" style={{ marginTop: 8 }}>
                                                     <code>celery -A app.tasks.celery_app:celery_app worker --loglevel=info</code>
-                                                    <button
-                                                        className="alp-cmd-copy"
-                                                        onClick={() => navigator.clipboard.writeText('celery -A app.tasks.celery_app:celery_app worker --loglevel=info')}
-                                                    >⎘</button>
+                                                    <button className="alp-cmd-copy" onClick={handleCopy}>
+                                                        {copied ? <Check size={13} /> : <Clipboard size={13} />}
+                                                    </button>
                                                 </div>
                                             </div>
                                         )}
@@ -752,21 +785,25 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
                 <div className="alp-footer">
                     {view === 'setup' ? (
                         <button className="alp-start-btn" onClick={handleStart} disabled={!canStart}>
-                            {launching
-                                ? '⏳ Starting…'
-                                : mode === 'suggest'
-                                    ? `🎯 Suggest ${budget} Image${budget !== 1 ? 's' : ''}`
-                                    : mode === 'curriculum'
-                                        ? '🎓 Run Curriculum Annotate'
-                                        : '📊 Score Images'}
+                            {launching ? (
+                                <><div className="alp-btn-spinner" /> Starting…</>
+                            ) : mode === 'suggest' ? (
+                                <><Target size={15} /> Suggest {budget} Image{budget !== 1 ? 's' : ''}</>
+                            ) : mode === 'curriculum' ? (
+                                <><Zap size={15} /> Run Curriculum Annotate</>
+                            ) : (
+                                <><Play size={15} /> Score Images</>
+                            )}
                         </button>
                     ) : (
                         <button className="alp-start-btn alp-start-btn--secondary" onClick={() => setView('setup')}>
-                            ← Back to Setup
+                            <ChevronLeft size={15} /> Back to Setup
                         </button>
                     )}
                     {anyRunning && (
-                        <button className="alp-stop-btn" onClick={handleStop}>⏹ Stop</button>
+                        <button className="alp-stop-btn" onClick={handleStop}>
+                            <Square size={13} /> Stop
+                        </button>
                     )}
                 </div>
             </div>

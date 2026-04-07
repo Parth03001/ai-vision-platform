@@ -11,7 +11,7 @@ import ReviewPanel from './ReviewPanel';
 import VideoPanel from './VideoPanel';
 import ActiveLearningPanel from './ActiveLearningPanel';
 import './AnnotationWorkspace.css';
-import { Sparkles, AlertTriangle, X, Upload, Image as ImageIcon, Check, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Sparkles, AlertTriangle, X, Upload, Image as ImageIcon, Check, ArrowLeft, ArrowRight, Brain } from 'lucide-react';
 import logoImg from '../logo.png';
 
 import { API_URL } from '../config';
@@ -547,7 +547,8 @@ Do you want to proceed?`;
                         Auto-Annotate
                     </button>
                     <button className="btn-action btn-action-al" onClick={() => setShowActiveLearningPanel(true)}>
-                        🧠 Active Learning
+                        <Brain size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: 'middle' }} />
+                        Active Learning
                     </button>
                     <button
                         className="btn-action btn-action-review"

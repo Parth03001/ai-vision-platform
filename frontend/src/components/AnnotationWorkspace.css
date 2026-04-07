@@ -334,13 +334,13 @@
 }
 
 .btn-action-al {
-  background: rgba(52, 211, 153, 0.08);
-  color: #34d399;
-  border: 1px solid rgba(52, 211, 153, 0.22);
+  background: rgba(220, 20, 60, 0.06);
+  color: #dc143c;
+  border: 1px solid rgba(220, 20, 60, 0.20);
 }
 .btn-action-al:hover:not(:disabled) {
-  background: rgba(52, 211, 153, 0.16);
-  border-color: #10b981;
+  background: rgba(220, 20, 60, 0.12);
+  border-color: #dc143c;
 }
 
 /* ── Canvas Area ────────────────────────────────────── */
