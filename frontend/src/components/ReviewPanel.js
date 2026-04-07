@@ -53,11 +53,12 @@ const ClassPicker = ({ classes, onConfirm, onCancel }) => {
     );
 };
 
-export default function ReviewPanel({ project, images, onClose, onAnnotationsUpdated }) {
-    // Only show annotated images (they can have auto annotations to review)
-    const reviewImages = images.filter(img =>
-        img.status === 'annotated' || img.status === 'annotating'
-    );
+export default function ReviewPanel({ project, images, onClose, onAnnotationsUpdated, filterImageIds }) {
+    // If filterImageIds is provided (e.g. from AL suggestions), show only those images.
+    // Otherwise show the normal annotated/annotating review queue.
+    const reviewImages = filterImageIds?.size > 0
+        ? images.filter(img => filterImageIds.has(String(img.id)))
+        : images.filter(img => img.status === 'annotated' || img.status === 'annotating');
 
     const [currentIdx, setCurrentIdx] = useState(0);
     const [annotations, setAnnotations] = useState([]);

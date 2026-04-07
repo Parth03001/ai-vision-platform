@@ -139,7 +139,8 @@ const AnnotationWorkspace = ({ project, onProjectUpdated }) => {
     const [showReviewPanel, setShowReviewPanel] = useState(false);
     const [showVideoPanel, setShowVideoPanel] = useState(false);
     const [showActiveLearningPanel, setShowActiveLearningPanel] = useState(false);
-    const [suggestedImageIds, setSuggestedImageIds] = useState(null); // Set<id> or null
+    const [suggestedImageIds, setSuggestedImageIds] = useState(null);  // Set<id> or null (sidebar highlight)
+    const [reviewFilterIds, setReviewFilterIds] = useState(null);      // Set<id> or null (ReviewPanel filter)
     // Local copy of classes so edits from LabelsPanel are reflected instantly
     const [localClasses, setLocalClasses] = useState(project.classes || []);
     const [aiPrompt, setAiPrompt] = useState('');
@@ -340,10 +341,9 @@ Do you want to proceed?`;
     // Called from ActiveLearningPanel when user clicks "Annotate These"
     const handleAnnotateImages = (imageIds) => {
         const idSet = new Set(imageIds.map(String));
-        setSuggestedImageIds(idSet);
-        // Navigate to first suggested image that exists in the list
-        const first = images.find(img => idSet.has(String(img.id)));
-        if (first) handleImageClick(first);
+        setSuggestedImageIds(idSet);   // highlight in sidebar
+        setReviewFilterIds(idSet);     // open in ReviewPanel
+        setShowReviewPanel(true);
     };
 
     const handleImageClick = (image) => {
@@ -964,7 +964,8 @@ Do you want to proceed?`;
                 <ReviewPanel
                     project={{ ...project, classes: localClasses }}
                     images={images}
-                    onClose={() => setShowReviewPanel(false)}
+                    filterImageIds={reviewFilterIds}
+                    onClose={() => { setShowReviewPanel(false); setReviewFilterIds(null); }}
                     onAnnotationsUpdated={() => {
                         // Refresh images and reload current image annotations after review
                         axios.get(`${API_URL}/images/project/${project.id}`)
