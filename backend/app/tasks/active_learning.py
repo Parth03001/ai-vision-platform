@@ -262,10 +262,11 @@ def score_unlabeled_images(
 
     # ── 3. Score each image ────────────────────────────────────────
     for idx, img in enumerate(img_rows):
-        self.update_state(
-            state="STARTED",
-            meta={"current": idx + 1, "total": total, "strategy": strategy},
-        )
+        if self.request.id:
+            self.update_state(
+                state="STARTED",
+                meta={"current": idx + 1, "total": total, "strategy": strategy},
+            )
 
         real_path = _resolve_image_path(img["filepath"])
         if real_path is None:
