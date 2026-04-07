@@ -1,6 +1,6 @@
 /* ══════════════════════════════════════════════════════
    LabelsPanel — Edit Labels modal
-   Accent: teal/cyan  (#0ea5e9 / #06b6d4)
+   Accent: crimson (#dc143c)
    Prefix: lp-
    ══════════════════════════════════════════════════════ */
 
@@ -8,7 +8,7 @@
 .lp-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(2, 6, 23, 0.72);
+    background: rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
@@ -19,8 +19,8 @@
 
 /* ── Panel ───────────────────────────────────────────── */
 .lp-panel {
-    background: #0f1623;
-    border: 1px solid rgba(14, 165, 233, 0.2);
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
     border-radius: 16px;
     width: 100%;
     max-width: 480px;
@@ -29,8 +29,8 @@
     flex-direction: column;
     overflow: hidden;
     box-shadow:
-        0 0 0 1px rgba(14, 165, 233, 0.06),
-        0 24px 64px rgba(0, 0, 0, 0.6);
+        0 0 0 1px rgba(220, 20, 60, 0.04),
+        0 24px 64px rgba(0, 0, 0, 0.15);
 }
 
 /* ── Header ──────────────────────────────────────────── */
@@ -39,12 +39,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 20px 24px 16px;
-    background: linear-gradient(
-        135deg,
-        rgba(14, 165, 233, 0.12) 0%,
-        rgba(6, 182, 212, 0.06) 100%
-    );
-    border-bottom: 1px solid rgba(14, 165, 233, 0.12);
+    background: #ffffff;
+    border-bottom: 1px solid #e5e5e5;
     flex-shrink: 0;
 }
 
@@ -57,27 +53,30 @@
 .lp-header-icon {
     font-size: 24px;
     line-height: 1;
+    color: #dc143c;
+    display: flex;
+    align-items: center;
 }
 
 .lp-title {
     margin: 0;
     font-size: 16px;
     font-weight: 700;
-    color: #f1f5f9;
+    color: #1a1a1a;
     letter-spacing: -0.01em;
 }
 
 .lp-subtitle {
     margin: 2px 0 0;
     font-size: 12px;
-    color: #64748b;
+    color: #666666;
 }
 
 .lp-close {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: #f5f5f5;
+    border: 1px solid #e5e5e5;
     border-radius: 8px;
-    color: #94a3b8;
+    color: #666666;
     font-size: 14px;
     width: 32px;
     height: 32px;
@@ -90,9 +89,9 @@
 }
 
 .lp-close:hover {
-    background: rgba(248, 113, 113, 0.12);
-    border-color: rgba(248, 113, 113, 0.3);
-    color: #f87171;
+    background: rgba(220, 20, 60, 0.08);
+    border-color: rgba(220, 20, 60, 0.3);
+    color: #dc143c;
 }
 
 /* ── Body ────────────────────────────────────────────── */
@@ -107,7 +106,7 @@
 
 .lp-body::-webkit-scrollbar { width: 4px; }
 .lp-body::-webkit-scrollbar-track { background: transparent; }
-.lp-body::-webkit-scrollbar-thumb { background: rgba(14, 165, 233, 0.2); border-radius: 2px; }
+.lp-body::-webkit-scrollbar-thumb { background: #e5e5e5; border-radius: 2px; }
 
 /* ── Stats row ───────────────────────────────────────── */
 .lp-stats-row {
@@ -119,8 +118,8 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    background: rgba(14, 165, 233, 0.06);
-    border: 1px solid rgba(14, 165, 233, 0.14);
+    background: rgba(220, 20, 60, 0.06);
+    border: 1px solid rgba(220, 20, 60, 0.14);
     border-radius: 10px;
     padding: 10px 20px;
     min-width: 80px;
@@ -129,13 +128,13 @@
 .lp-stat-num {
     font-size: 20px;
     font-weight: 700;
-    color: #38bdf8;
+    color: #dc143c;
     line-height: 1;
 }
 
 .lp-stat-label {
     font-size: 11px;
-    color: #64748b;
+    color: #666666;
     margin-top: 4px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -147,29 +146,31 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    background: rgba(248, 113, 113, 0.1);
-    border: 1px solid rgba(248, 113, 113, 0.25);
+    background: rgba(220, 20, 60, 0.06);
+    border: 1px solid rgba(220, 20, 60, 0.2);
     border-radius: 8px;
     padding: 10px 14px;
     font-size: 13px;
-    color: #fca5a5;
+    color: #dc143c;
 }
 
 .lp-error-dismiss {
     background: none;
     border: none;
-    color: #f87171;
+    color: #dc143c;
     cursor: pointer;
     font-size: 12px;
     padding: 2px 4px;
     line-height: 1;
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
 }
 
 /* ── Delete confirmation card ────────────────────────── */
 .lp-confirm-card {
-    background: rgba(248, 113, 113, 0.07);
-    border: 1px solid rgba(248, 113, 113, 0.22);
+    background: rgba(220, 38, 38, 0.04);
+    border: 1px solid rgba(220, 38, 38, 0.18);
     border-radius: 12px;
     padding: 16px;
     display: flex;
@@ -186,17 +187,17 @@
 .lp-confirm-title {
     margin: 0;
     font-size: 14px;
-    color: #f1f5f9;
+    color: #1a1a1a;
 }
 
 .lp-confirm-title strong {
-    color: #fca5a5;
+    color: #dc143c;
 }
 
 .lp-confirm-sub {
     margin: 0;
     font-size: 12px;
-    color: #64748b;
+    color: #666666;
 }
 
 .lp-confirm-check {
@@ -204,13 +205,13 @@
     align-items: center;
     gap: 8px;
     font-size: 13px;
-    color: #94a3b8;
+    color: #666666;
     cursor: pointer;
     user-select: none;
 }
 
 .lp-confirm-check input[type="checkbox"] {
-    accent-color: #f87171;
+    accent-color: #dc143c;
     width: 15px;
     height: 15px;
     cursor: pointer;
@@ -218,7 +219,7 @@
 }
 
 .lp-confirm-check strong {
-    color: #fbbf24;
+    color: #d97706;
 }
 
 .lp-confirm-btns {
@@ -241,7 +242,7 @@
     align-items: center;
     justify-content: center;
     padding: 32px 16px;
-    color: #475569;
+    color: #999999;
     text-align: center;
     gap: 6px;
 }
@@ -251,11 +252,12 @@
     opacity: 0.4;
     display: block;
     margin-bottom: 4px;
+    color: #dc143c;
 }
 
 .lp-empty-sub {
     font-size: 12px;
-    color: #374151;
+    color: #666666;
 }
 
 /* ── Label row ───────────────────────────────────────── */
@@ -263,8 +265,8 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    background: rgba(255, 255, 255, 0.025);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
     border-radius: 10px;
     padding: 10px 12px;
     transition: background 0.12s, border-color 0.12s;
@@ -272,18 +274,18 @@
 }
 
 .lp-row:hover {
-    background: rgba(14, 165, 233, 0.05);
-    border-color: rgba(14, 165, 233, 0.12);
+    background: #f5f5f5;
+    border-color: #d0d0d0;
 }
 
 .lp-row--editing {
-    background: rgba(14, 165, 233, 0.07);
-    border-color: rgba(14, 165, 233, 0.25) !important;
+    background: rgba(220, 20, 60, 0.04);
+    border-color: rgba(220, 20, 60, 0.25) !important;
 }
 
 .lp-row--deleting {
-    background: rgba(248, 113, 113, 0.06);
-    border-color: rgba(248, 113, 113, 0.2) !important;
+    background: rgba(220, 38, 38, 0.04);
+    border-color: rgba(220, 38, 38, 0.18) !important;
 }
 
 .lp-dot {
@@ -291,13 +293,13 @@
     height: 11px;
     border-radius: 50%;
     flex-shrink: 0;
-    box-shadow: 0 0 5px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.15);
 }
 
 .lp-name {
     flex: 1;
     font-size: 14px;
-    color: #e2e8f0;
+    color: #1a1a1a;
     font-weight: 500;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -306,9 +308,9 @@
 
 .lp-count {
     font-size: 12px;
-    color: #475569;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: #666666;
+    background: #f5f5f5;
+    border: 1px solid #e5e5e5;
     border-radius: 5px;
     padding: 1px 7px;
     min-width: 28px;
@@ -319,10 +321,10 @@
 /* ── Rename input ────────────────────────────────────── */
 .lp-rename-input {
     flex: 1;
-    background: rgba(14, 165, 233, 0.08);
-    border: 1px solid rgba(14, 165, 233, 0.35);
+    background: #f5f5f5;
+    border: 1px solid rgba(220, 20, 60, 0.35);
     border-radius: 6px;
-    color: #f1f5f9;
+    color: #1a1a1a;
     font-size: 14px;
     font-weight: 500;
     padding: 4px 8px;
@@ -331,8 +333,8 @@
 }
 
 .lp-rename-input:focus {
-    border-color: #0ea5e9;
-    box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.15);
+    border-color: #dc143c;
+    box-shadow: 0 0 0 2px rgba(220, 20, 60, 0.12);
 }
 
 /* ── Row action buttons ──────────────────────────────── */
@@ -346,7 +348,7 @@
     background: none;
     border: 1px solid transparent;
     border-radius: 6px;
-    color: #475569;
+    color: #999999;
     font-size: 13px;
     width: 28px;
     height: 28px;
@@ -364,37 +366,37 @@
 }
 
 .lp-icon-btn:not(:disabled):hover {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(255, 255, 255, 0.1);
-    color: #94a3b8;
+    background: #f5f5f5;
+    border-color: #e5e5e5;
+    color: #666666;
 }
 
 .lp-icon-btn--save:not(:disabled) {
-    color: #4ade80;
+    color: #16a34a;
 }
 .lp-icon-btn--save:not(:disabled):hover {
-    background: rgba(74, 222, 128, 0.1);
-    border-color: rgba(74, 222, 128, 0.3);
+    background: rgba(22, 163, 74, 0.08);
+    border-color: rgba(22, 163, 74, 0.3);
 }
 
 .lp-icon-btn--cancel:not(:disabled) {
-    color: #f87171;
+    color: #dc143c;
 }
 .lp-icon-btn--cancel:not(:disabled):hover {
-    background: rgba(248, 113, 113, 0.1);
-    border-color: rgba(248, 113, 113, 0.3);
+    background: rgba(220, 20, 60, 0.08);
+    border-color: rgba(220, 20, 60, 0.3);
 }
 
 .lp-icon-btn--edit:not(:disabled):hover {
-    background: rgba(14, 165, 233, 0.1);
-    border-color: rgba(14, 165, 233, 0.3);
-    color: #38bdf8;
+    background: rgba(220, 20, 60, 0.08);
+    border-color: rgba(220, 20, 60, 0.3);
+    color: #dc143c;
 }
 
 .lp-icon-btn--del:not(:disabled):hover {
-    background: rgba(248, 113, 113, 0.1);
-    border-color: rgba(248, 113, 113, 0.3);
-    color: #f87171;
+    background: rgba(220, 38, 38, 0.08);
+    border-color: rgba(220, 38, 38, 0.3);
+    color: #dc2626;
 }
 
 /* ── Add row ─────────────────────────────────────────── */
@@ -402,8 +404,8 @@
     display: flex;
     gap: 8px;
     align-items: center;
-    background: rgba(14, 165, 233, 0.05);
-    border: 1px solid rgba(14, 165, 233, 0.18);
+    background: rgba(220, 20, 60, 0.04);
+    border: 1px solid rgba(220, 20, 60, 0.18);
     border-radius: 10px;
     padding: 10px 12px;
     animation: lp-slide-down 0.15s ease;
@@ -411,40 +413,44 @@
 
 .lp-add-input {
     flex: 1;
-    background: rgba(14, 165, 233, 0.07);
-    border: 1px solid rgba(14, 165, 233, 0.25);
+    background: #f5f5f5;
+    border: 1px solid rgba(220, 20, 60, 0.25);
     border-radius: 6px;
-    color: #f1f5f9;
+    color: #1a1a1a;
     font-size: 14px;
     padding: 6px 10px;
     outline: none;
     min-width: 0;
 }
 
-.lp-add-input::placeholder { color: #475569; }
+.lp-add-input::placeholder { color: #999999; }
 
 .lp-add-input:focus {
-    border-color: #0ea5e9;
-    box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.15);
+    border-color: #dc143c;
+    box-shadow: 0 0 0 2px rgba(220, 20, 60, 0.12);
 }
 
 .lp-add-btn {
     width: 100%;
-    background: rgba(14, 165, 233, 0.06);
-    border: 1px dashed rgba(14, 165, 233, 0.25);
+    background: rgba(220, 20, 60, 0.06);
+    border: 1px dashed rgba(220, 20, 60, 0.25);
     border-radius: 10px;
-    color: #38bdf8;
+    color: #dc143c;
     font-size: 14px;
     font-weight: 500;
     padding: 12px;
     cursor: pointer;
     transition: all 0.15s;
     text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
 }
 
 .lp-add-btn:hover {
-    background: rgba(14, 165, 233, 0.1);
-    border-color: rgba(14, 165, 233, 0.4);
+    background: rgba(220, 20, 60, 0.10);
+    border-color: rgba(220, 20, 60, 0.4);
     border-style: solid;
 }
 
@@ -466,31 +472,31 @@
 }
 
 .lp-btn--primary {
-    background: rgba(14, 165, 233, 0.15);
-    border: 1px solid rgba(14, 165, 233, 0.4);
-    color: #38bdf8;
+    background: #dc143c;
+    border: 1px solid #dc143c;
+    color: #ffffff;
 }
 .lp-btn--primary:not(:disabled):hover {
-    background: rgba(14, 165, 233, 0.25);
-    border-color: #0ea5e9;
+    background: #b8102e;
+    border-color: #b8102e;
 }
 
 .lp-btn--ghost {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    color: #64748b;
+    background: #f5f5f5;
+    border: 1px solid #e5e5e5;
+    color: #666666;
 }
 .lp-btn--ghost:not(:disabled):hover {
-    background: rgba(255, 255, 255, 0.07);
-    color: #94a3b8;
+    background: #ebebeb;
+    color: #1a1a1a;
 }
 
 .lp-btn--danger {
-    background: rgba(248, 113, 113, 0.12);
-    border: 1px solid rgba(248, 113, 113, 0.35);
-    color: #f87171;
+    background: rgba(220, 38, 38, 0.08);
+    border: 1px solid rgba(220, 38, 38, 0.3);
+    color: #dc2626;
 }
 .lp-btn--danger:not(:disabled):hover {
-    background: rgba(248, 113, 113, 0.22);
-    border-color: #f87171;
+    background: rgba(220, 38, 38, 0.15);
+    border-color: #dc2626;
 }

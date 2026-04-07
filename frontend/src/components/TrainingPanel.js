@@ -4,8 +4,10 @@ import {
     LineChart, Line, XAxis, YAxis, CartesianGrid,
     Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
+import { Rocket, X, RefreshCw, Download, Inbox, Info, Square, ChevronLeft, Copy, Play } from 'lucide-react';
 import { YOLO_MODEL_GROUPS, DEFAULT_SEED_MODEL } from '../constants/yoloModels';
 import './TrainingPanel.css';
+import logoImg from '../logo.png';
 
 import { API_URL } from '../config';
 const POLL_INTERVAL = 3000;
@@ -85,12 +87,12 @@ const LossChart = ({ history }) => {
             <p className="chart-title">Training Loss</p>
             <ResponsiveContainer width="100%" height={160}>
                 <LineChart data={history} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e2330" />
-                    <XAxis dataKey="epoch" tick={{ fill: '#475569', fontSize: 10 }} label={{ value: 'Epoch', position: 'insideBottom', fill: '#475569', fontSize: 10, offset: -1 }} />
-                    <YAxis tick={{ fill: '#475569', fontSize: 10 }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" />
+                    <XAxis dataKey="epoch" tick={{ fill: '#999999', fontSize: 10 }} label={{ value: 'Epoch', position: 'insideBottom', fill: '#999999', fontSize: 10, offset: -1 }} />
+                    <YAxis tick={{ fill: '#999999', fontSize: 10 }} />
                     <Tooltip content={<ChartTooltip />} />
-                    <Legend wrapperStyle={{ fontSize: 10, color: '#64748b' }} />
-                    {hasBox && <Line type="monotone" dataKey="box_loss" name="Box" stroke="#6366f1" dot={false} strokeWidth={1.5} />}
+                    <Legend wrapperStyle={{ fontSize: 10, color: '#666666' }} />
+                    {hasBox && <Line type="monotone" dataKey="box_loss" name="Box" stroke="#dc143c" dot={false} strokeWidth={1.5} />}
                     {hasCls && <Line type="monotone" dataKey="cls_loss" name="Cls" stroke="#f59e0b" dot={false} strokeWidth={1.5} />}
                     {hasDfl && <Line type="monotone" dataKey="dfl_loss" name="DFL" stroke="#ec4899" dot={false} strokeWidth={1.5} />}
                 </LineChart>
@@ -118,11 +120,11 @@ const MapChart = ({ history }) => {
             <p className="chart-title">Validation mAP</p>
             <ResponsiveContainer width="100%" height={160}>
                 <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e2330" />
-                    <XAxis dataKey="epoch" tick={{ fill: '#475569', fontSize: 10 }} />
-                    <YAxis domain={[0, 1]} tick={{ fill: '#475569', fontSize: 10 }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" />
+                    <XAxis dataKey="epoch" tick={{ fill: '#999999', fontSize: 10 }} />
+                    <YAxis domain={[0, 1]} tick={{ fill: '#999999', fontSize: 10 }} />
                     <Tooltip content={<ChartTooltip />} />
-                    <Legend wrapperStyle={{ fontSize: 10, color: '#64748b' }} />
+                    <Legend wrapperStyle={{ fontSize: 10, color: '#666666' }} />
                     {hasMap50 && <Line type="monotone" dataKey="mAP50" name="mAP50" stroke="#4ade80" dot={false} strokeWidth={1.5} />}
                     {hasMap95 && <Line type="monotone" dataKey="mAP50-95" name="mAP50-95" stroke="#38bdf8" dot={false} strokeWidth={1.5} />}
                 </LineChart>
@@ -141,15 +143,15 @@ const PreprocessingProgress = ({ meta }) => {
             <div className="epoch-progress-header">
                 <span className="epoch-label">
                     ⚡ Preprocessing
-                    {splitLabel && <span style={{ color: '#64748b', fontWeight: 400 }}> — {splitLabel} set</span>}
+                    {splitLabel && <span style={{ color: '#666666', fontWeight: 400 }}> — {splitLabel} set</span>}
                 </span>
-                <span className="epoch-eta" style={{ color: '#a78bfa' }}>{current} / {total} images</span>
+                <span className="epoch-eta" style={{ color: '#d97706' }}>{current} / {total} images</span>
                 <span className="epoch-pct">{pct}%</span>
             </div>
             <div className="epoch-bar">
-                <div className="epoch-bar-fill" style={{ width: `${pct}%`, background: 'linear-gradient(90deg,#7c3aed,#a78bfa)' }} />
+                <div className="epoch-bar-fill" style={{ width: `${pct}%`, background: 'linear-gradient(90deg,#dc143c,#f87171)' }} />
             </div>
-            <p style={{ fontSize: 10, color: '#475569', marginTop: 4 }}>
+            <p style={{ fontSize: 10, color: '#666666', marginTop: 4 }}>
                 Applying CLAHE contrast enhancement to training images…
             </p>
         </div>
@@ -524,8 +526,8 @@ const TrainingPanel = ({ project, onClose }) => {
 
     const btnLabel = () => {
         if (launching) return 'Queuing…';
-        if (runningCount() >= MAX_PARALLEL) return '📥 Queue Job';
-        return '🚀 Start Training';
+        if (runningCount() >= MAX_PARALLEL) return <><Download size={16} /> Queue Job</>;
+        return <><Rocket size={16} /> Start Training</>;
     };
 
     return (
@@ -535,13 +537,14 @@ const TrainingPanel = ({ project, onClose }) => {
                 {/* ── Header ── */}
                 <div className="tp-header">
                     <div className="tp-header-left">
-                        <span className="tp-header-icon">🚀</span>
+                        <img src={logoImg} alt="Logo" style={{ height: 32, objectFit: 'contain' }} />
+                        <span className="tp-header-icon"><Rocket size={20} /></span>
                         <div>
                             <h2 className="tp-title">Train Seed Model</h2>
                             <p className="tp-subtitle">{project.name}</p>
                         </div>
                     </div>
-                    <button className="tp-close" onClick={onClose}>✕</button>
+                    <button className="tp-close" onClick={onClose}><X size={18} /></button>
                 </div>
 
                 {/* ── Tabs ── */}
@@ -564,7 +567,7 @@ const TrainingPanel = ({ project, onClose }) => {
                             <section className="tp-section">
                                 <div className="tp-section-header">
                                     <span className="tp-section-title">Dataset Overview</span>
-                                    <button className="tp-refresh" onClick={loadStats} title="Refresh">↻</button>
+                                    <button className="tp-refresh" onClick={loadStats} title="Refresh"><RefreshCw size={15} /></button>
                                 </div>
                                 {statsLoading ? (
                                     <div className="tp-stats-loading"><div className="tp-spinner" /><span>Loading…</span></div>
@@ -600,7 +603,7 @@ const TrainingPanel = ({ project, onClose }) => {
                                         )}
                                         {!readyToTrain && <div className="tp-warning">⚠️ Annotate at least 1 image before training.</div>}
                                         {stats.pending_images > 0 && readyToTrain && (
-                                            <div className="tp-info">💡 {stats.pending_images} unannotated image{stats.pending_images !== 1 ? 's' : ''} — more annotations improve accuracy.</div>
+                                            <div className="tp-info" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Info size={16} /> {stats.pending_images} unannotated image{stats.pending_images !== 1 ? 's' : ''} — more annotations improve accuracy.</div>
                                         )}
                                         {/* ── Split preview ── */}
                                         {(() => {
@@ -738,12 +741,12 @@ const TrainingPanel = ({ project, onClose }) => {
                                                 </p>
                                                 <div style={{ display: 'flex', gap: 8 }}>
                                                     <div style={{ flex: 1, textAlign: 'center' }}>
-                                                        <p style={{ fontSize: 10, color: '#64748b', marginBottom: 4 }}>Original</p>
-                                                        <img src={clahePreview.original} alt="Original" style={{ width: '100%', borderRadius: 4, border: '1px solid #1e2330' }} />
+                                                        <p style={{ fontSize: 10, color: '#666666', marginBottom: 4 }}>Original</p>
+                                                        <img src={clahePreview.original} alt="Original" style={{ width: '100%', borderRadius: 4, border: '1px solid #e5e5e5' }} />
                                                     </div>
                                                     <div style={{ flex: 1, textAlign: 'center' }}>
-                                                        <p style={{ fontSize: 10, color: '#4ade80', marginBottom: 4 }}>After CLAHE</p>
-                                                        <img src={clahePreview.enhanced} alt="CLAHE enhanced" style={{ width: '100%', borderRadius: 4, border: '1px solid #4ade80' }} />
+                                                        <p style={{ fontSize: 10, color: '#16a34a', marginBottom: 4 }}>After CLAHE</p>
+                                                        <img src={clahePreview.enhanced} alt="CLAHE enhanced" style={{ width: '100%', borderRadius: 4, border: '1px solid #16a34a' }} />
                                                     </div>
                                                 </div>
                                             </>
@@ -760,7 +763,7 @@ const TrainingPanel = ({ project, onClose }) => {
                                                     {stats?.annotated_images > 0 && (
                                                         <button
                                                             onClick={loadClahePreview}
-                                                            style={{ marginLeft: 8, background: 'none', border: 'none', color: '#6366f1', cursor: 'pointer', fontSize: 11, textDecoration: 'underline', padding: 0 }}
+                                                            style={{ marginLeft: 8, background: 'none', border: 'none', color: '#dc143c', cursor: 'pointer', fontSize: 11, textDecoration: 'underline', padding: 0 }}
                                                         >
                                                             Show preview
                                                         </button>
@@ -783,7 +786,7 @@ const TrainingPanel = ({ project, onClose }) => {
                                     <p className="tp-worker-desc">Open a <strong>new terminal</strong> in <code>backend/</code> and run:</p>
                                     <div className="tp-cmd-block">
                                         <code>celery -A app.tasks.celery_app:celery_app worker --loglevel=info</code>
-                                        <button className="tp-cmd-copy" onClick={() => navigator.clipboard.writeText('celery -A app.tasks.celery_app:celery_app worker --loglevel=info')} title="Copy">⎘</button>
+                                        <button className="tp-cmd-copy" onClick={() => navigator.clipboard.writeText('celery -A app.tasks.celery_app:celery_app worker --loglevel=info')} title="Copy"><Copy size={14} /></button>
                                     </div>
                                 </div>
                             </section>
@@ -794,7 +797,7 @@ const TrainingPanel = ({ project, onClose }) => {
                     {view === 'jobs' && (
                         jobs.length === 0 ? (
                             <div className="tp-jobs-empty">
-                                <span className="tp-jobs-empty-icon">📭</span>
+                                <span className="tp-jobs-empty-icon"><Inbox size={32} /></span>
                                 <p>No training jobs yet.</p>
                                 <p className="tp-jobs-empty-sub">Click <strong>Start Training</strong> below to launch one.</p>
                             </div>
@@ -946,7 +949,7 @@ const TrainingPanel = ({ project, onClose }) => {
                                                 <p className="tp-worker-error">⚠️ Worker not detected. Start it, then try again.</p>
                                                 <div className="tp-cmd-block">
                                                     <code>celery -A app.tasks.celery_app:celery_app worker --loglevel=info</code>
-                                                    <button className="tp-cmd-copy" onClick={() => navigator.clipboard.writeText('celery -A app.tasks.celery_app:celery_app worker --loglevel=info')}>⎘</button>
+                                                    <button className="tp-cmd-copy" onClick={() => navigator.clipboard.writeText('celery -A app.tasks.celery_app:celery_app worker --loglevel=info')}><Copy size={14} /></button>
                                                 </div>
                                             </div>
                                         )}
@@ -964,7 +967,7 @@ const TrainingPanel = ({ project, onClose }) => {
                     </button>
                     {anyRunning && (
                         <button className="tp-stop-btn" onClick={handleStop} title="Stop training">
-                            ⏹ Stop
+                            <Square size={14} /> Stop
                         </button>
                     )}
                 </div>

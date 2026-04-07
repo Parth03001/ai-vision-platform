@@ -3,6 +3,8 @@ import axios from 'axios';
 import './ProjectList.css';
 
 import { API_URL } from '../config';
+import { FolderOpen, Tag, Plus, X, Trash2, AlertTriangle, ArrowRight, Calendar, Grid3X3, Sparkles } from 'lucide-react';
+import logoImg from '../logo.png';
 
 /* ── Per-project gradient palette ─────────────────────────────── */
 const CARD_PALETTES = [
@@ -65,12 +67,7 @@ function DeleteModal({ project, onConfirm, onCancel, deleting }) {
             <div className="pl-modal" ref={modalRef} role="dialog" aria-modal="true">
                 {/* Icon */}
                 <div className="pl-modal-icon">
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6"/>
-                        <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
-                        <path d="M10 11v6M14 11v6"/>
-                        <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
-                    </svg>
+                    <Trash2 size={28} />
                 </div>
 
                 {/* Text */}
@@ -99,7 +96,7 @@ function DeleteModal({ project, onConfirm, onCancel, deleting }) {
                     >
                         {deleting
                             ? <><span className="pl-btn-spinner" />Deleting…</>
-                            : <><span>🗑</span> Delete Project</>
+                            : <><Trash2 size={14} /> Delete Project</>
                         }
                     </button>
                 </div>
@@ -141,7 +138,7 @@ function ProjectCard({ project, index, onClick, onDelete }) {
                     {initials || '?'}
                 </div>
                 <div className="pl-card-open-hint">
-                    Open <span className="pl-card-arrow">→</span>
+                    Open <span className="pl-card-arrow"><ArrowRight size={12} /></span>
                 </div>
             </div>
 
@@ -183,17 +180,11 @@ function ProjectCard({ project, index, onClick, onDelete }) {
             <div className="pl-card-footer">
                 <div className="pl-card-footer-left">
                     <span className="pl-card-stat">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-                            <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-                        </svg>
+                        <Grid3X3 size={13} />
                         {classCount} {classCount === 1 ? 'class' : 'classes'}
                     </span>
                     <span className="pl-card-stat pl-card-date">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
-                            <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-                        </svg>
+                        <Calendar size={12} />
                         {project.created_at
                             ? new Date(project.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                             : 'Recently'}
@@ -207,12 +198,7 @@ function ProjectCard({ project, index, onClick, onDelete }) {
                     title="Delete project"
                     aria-label="Delete project"
                 >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6"/>
-                        <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
-                        <path d="M10 11v6M14 11v6"/>
-                        <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
-                    </svg>
+                    <Trash2 size={13} />
                 </button>
             </div>
 
@@ -318,9 +304,9 @@ const ProjectList = ({ onProjectSelect, user }) => {
                     <div className="pl-hero-orb pl-hero-orb--2" />
                     <div className="pl-hero-grid" />
                 </div>
-                <div className="pl-hero-inner">
+                <div className="pl-hero-inner" style={{ position: 'relative' }}>
                     <div className="pl-hero-text">
-                        <p className="pl-hero-greeting">{getGreeting()}, {firstName} 👋</p>
+                        <p className="pl-hero-greeting">{getGreeting()}, {firstName}</p>
                         <h1 className="pl-hero-title">Your Projects</h1>
                         <p className="pl-hero-sub">Manage your computer-vision annotation projects</p>
                     </div>
@@ -328,14 +314,14 @@ const ProjectList = ({ onProjectSelect, user }) => {
                     {/* Stats pills */}
                     <div className="pl-stats">
                         <div className="pl-stat-pill">
-                            <span className="pl-stat-icon">📁</span>
+                            <span className="pl-stat-icon"><FolderOpen size={16} /></span>
                             <div>
                                 <span className="pl-stat-num">{projects.length}</span>
                                 <span className="pl-stat-label">Projects</span>
                             </div>
                         </div>
                         <div className="pl-stat-pill">
-                            <span className="pl-stat-icon">🏷️</span>
+                            <span className="pl-stat-icon"><Tag size={16} /></span>
                             <div>
                                 <span className="pl-stat-num">{totalClasses}</span>
                                 <span className="pl-stat-label">Total Classes</span>
@@ -347,10 +333,13 @@ const ProjectList = ({ onProjectSelect, user }) => {
                             className="pl-new-btn"
                             onClick={() => setShowForm(v => !v)}
                         >
-                            <span className="pl-new-btn-icon">{showForm ? '×' : '+'}</span>
+                            <span className="pl-new-btn-icon">{showForm ? <X size={18} /> : <Plus size={18} />}</span>
                             {showForm ? 'Cancel' : 'New Project'}
                         </button>
                     </div>
+
+                    {/* Logo — top right of hero */}
+                    <img src={logoImg} alt="Logo" style={{ height: 40, width: 'auto', objectFit: 'contain', position: 'absolute', top: 16, right: 32 }} />
                 </div>
             </div>
 
@@ -360,9 +349,9 @@ const ProjectList = ({ onProjectSelect, user }) => {
                 {/* Error banner */}
                 {error && (
                     <div className="pl-error">
-                        <span>⚠</span>
+                        <AlertTriangle size={16} />
                         {error}
-                        <button onClick={() => setError(null)}>×</button>
+                        <button onClick={() => setError(null)}><X size={16} /></button>
                     </div>
                 )}
 
@@ -370,7 +359,7 @@ const ProjectList = ({ onProjectSelect, user }) => {
                 {showForm && (
                     <div className="pl-create-card">
                         <div className="pl-create-header">
-                            <div className="pl-create-icon">◈</div>
+                            <div className="pl-create-icon"><Sparkles size={20} /></div>
                             <div>
                                 <h3 className="pl-create-title">Create New Project</h3>
                                 <p className="pl-create-sub">Set a name and initial label classes</p>
@@ -412,7 +401,7 @@ const ProjectList = ({ onProjectSelect, user }) => {
                                 >
                                     {creating
                                         ? <><span className="pl-btn-spinner" />Creating…</>
-                                        : <><span>✦</span> Create Project</>
+                                        : <><Plus size={16} /> Create Project</>
                                     }
                                 </button>
                             </div>
@@ -430,7 +419,7 @@ const ProjectList = ({ onProjectSelect, user }) => {
                         <div className="pl-empty-art">
                             <div className="pl-empty-circle pl-empty-circle--outer" />
                             <div className="pl-empty-circle pl-empty-circle--inner" />
-                            <span className="pl-empty-icon">📂</span>
+                            <span className="pl-empty-icon"><FolderOpen size={48} /></span>
                         </div>
                         <h3 className="pl-empty-title">No projects yet</h3>
                         <p className="pl-empty-sub">Create your first project to start annotating images</p>

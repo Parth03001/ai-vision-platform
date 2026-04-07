@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { Eye, ArrowLeft, LogOut } from 'lucide-react';
 import './App.css';
 import LandingPage from './components/LandingPage';
 import LoginPage from './components/LoginPage';
 import ProjectList from './components/ProjectList';
 import AnnotationWorkspace from './components/AnnotationWorkspace';
+import logoImg from './logo.png';
 
 import { API_URL } from './config';
 
@@ -22,7 +24,6 @@ axios.interceptors.response.use(
             localStorage.removeItem('auth_token');
             localStorage.removeItem('auth_user');
             delete axios.defaults.headers.common['Authorization'];
-            // Signal re-render by dispatching a custom event
             window.dispatchEvent(new Event('auth:logout'));
         }
         return Promise.reject(err);
@@ -30,14 +31,12 @@ axios.interceptors.response.use(
 );
 
 function App() {
-    // 'landing' | 'login' | 'dashboard'
     const [view, setView]                 = useState('landing');
     const [loginDefaultTab, setLoginDefaultTab] = useState('login');
     const [currentUser, setCurrentUser]   = useState(null);
     const [currentProject, setCurrentProject] = useState(null);
     const [authChecking, setAuthChecking] = useState(true);
 
-    // ── On mount: validate saved session + restore last project ──
     useEffect(() => {
         const token = localStorage.getItem('auth_token');
         if (!token) { setAuthChecking(false); return; }
@@ -46,20 +45,17 @@ function App() {
             .then(async res => {
                 setCurrentUser(res.data);
                 setView('dashboard');
-                // Restore the project the user was viewing before the reload
                 const savedId = sessionStorage.getItem('current_project_id');
                 if (savedId) {
                     try {
                         const projRes = await axios.get(`${API_URL}/projects/${savedId}`);
                         setCurrentProject(projRes.data);
                     } catch {
-                        // Project deleted or inaccessible — just show dashboard
                         sessionStorage.removeItem('current_project_id');
                     }
                 }
             })
             .catch(() => {
-                // Token invalid / expired — clear and show landing
                 localStorage.removeItem('auth_token');
                 localStorage.removeItem('auth_user');
                 delete axios.defaults.headers.common['Authorization'];
@@ -67,7 +63,6 @@ function App() {
             .finally(() => setAuthChecking(false));
     }, []);
 
-    // ── Listen for 401 interceptor signal ────────────────────────
     useEffect(() => {
         const handler = () => {
             sessionStorage.removeItem('current_project_id');
@@ -79,7 +74,6 @@ function App() {
         return () => window.removeEventListener('auth:logout', handler);
     }, []);
 
-    // ── Auth actions ──────────────────────────────────────────────
     const handleLoginSuccess = (user) => {
         setCurrentUser(user);
         setCurrentProject(null);
@@ -111,16 +105,16 @@ function App() {
         setCurrentProject(updated);
     };
 
-    // ── Show nothing while checking saved session ─────────────────
     if (authChecking) {
         return (
             <div className="app-boot">
-                <span className="app-boot-icon">◈</span>
+                <span className="app-boot-icon">
+                    <Eye size={40} />
+                </span>
             </div>
         );
     }
 
-    // ── Landing ───────────────────────────────────────────────────
     if (view === 'landing') {
         return (
             <LandingPage
@@ -130,7 +124,6 @@ function App() {
         );
     }
 
-    // ── Login / Register ──────────────────────────────────────────
     if (view === 'login') {
         return (
             <LoginPage
@@ -141,13 +134,14 @@ function App() {
         );
     }
 
-    // ── Dashboard ─────────────────────────────────────────────────
     return (
         <div className="app">
             <header className="app-header">
                 <div className="app-header-inner">
                     <div className="app-logo">
-                        <span className="app-logo-icon">◈</span>
+                        <span className="app-logo-icon">
+                            <Eye size={22} />
+                        </span>
                         <span className="app-logo-text">AI Vision Platform</span>
                     </div>
 
@@ -157,19 +151,21 @@ function App() {
                                 className="btn-back"
                                 onClick={handleBackToDashboard}
                             >
-                                ← Dashboard
+                                <ArrowLeft size={14} />
+                                Dashboard
                             </button>
                             <span className="app-nav-project">{currentProject.name}</span>
                         </nav>
                     )}
 
-                    {/* User info + logout */}
                     <div className="app-user">
+                        <img src={logoImg} alt="Logo" className="app-logo-img" />
                         <span className="app-user-avatar">
                             {currentUser?.name?.[0]?.toUpperCase() || '?'}
                         </span>
                         <span className="app-user-name">{currentUser?.name}</span>
                         <button className="app-logout-btn" onClick={handleLogout} title="Sign out">
+                            <LogOut size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />
                             Sign Out
                         </button>
                     </div>

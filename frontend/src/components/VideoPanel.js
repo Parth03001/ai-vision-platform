@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
+import { Film, X, Video, Trash2, Check, Square, AlertTriangle, Upload, ChevronLeft } from 'lucide-react';
 import './VideoPanel.css';
+import logoImg from '../logo.png';
 
 import { API_URL } from '../config';
 const POLL_INTERVAL = 2500;
@@ -181,13 +183,14 @@ export default function VideoPanel({ project, onClose, onFramesExtracted }) {
                 {/* Header */}
                 <div className="vp-header">
                     <div className="vp-header-left">
-                        <span className="vp-header-icon">🎬</span>
+                        <img src={logoImg} alt="Logo" style={{ height: 32, objectFit: 'contain' }} />
+                        <span className="vp-header-icon"><Film size={20} /></span>
                         <div>
                             <h2 className="vp-title">Video Import</h2>
                             <p className="vp-subtitle">Upload videos → extract frames → annotate &amp; train</p>
                         </div>
                     </div>
-                    <button className="vp-close" onClick={onClose}>✕</button>
+                    <button className="vp-close" onClick={onClose}><X size={18} /></button>
                 </div>
 
                 {/* How it works */}
@@ -213,11 +216,11 @@ export default function VideoPanel({ project, onClose, onFramesExtracted }) {
                     {/* Toasts */}
                     {error && (
                         <div className="vp-error">
-                            <span>⚠ {error}</span>
-                            <button onClick={() => setError(null)}>✕</button>
+                            <span><AlertTriangle size={14} /> {error}</span>
+                            <button onClick={() => setError(null)}><X size={14} /></button>
                         </div>
                     )}
-                    {successMsg && <div className="vp-success">✓ {successMsg}</div>}
+                    {successMsg && <div className="vp-success"><Check size={14} /> {successMsg}</div>}
 
                     {/* Upload zone */}
                     <div className="vp-upload-zone" onClick={() => !uploading && fileInputRef.current?.click()}>
@@ -238,7 +241,7 @@ export default function VideoPanel({ project, onClose, onFramesExtracted }) {
                             </div>
                         ) : (
                             <>
-                                <span className="vp-upload-icon">📹</span>
+                                <span className="vp-upload-icon"><Upload size={40} /></span>
                                 <span className="vp-upload-label">Click to upload a video</span>
                                 <span className="vp-upload-hint">MP4 · AVI · MOV · MKV · WebM</span>
                             </>
@@ -280,7 +283,7 @@ export default function VideoPanel({ project, onClose, onFramesExtracted }) {
                                                     onClick={() => handleDelete(video.id)}
                                                     title="Delete video and extracted frames"
                                                     disabled={isExtracting}
-                                                >🗑</button>
+                                                ><Trash2 size={14} /></button>
                                             </div>
                                         </div>
 
@@ -301,7 +304,7 @@ export default function VideoPanel({ project, onClose, onFramesExtracted }) {
                                                         onClick={() => handleStop(video.id)}
                                                         title="Stop extraction and keep frames extracted so far"
                                                     >
-                                                        ⬛ Stop
+                                                        <Square size={14} /> Stop
                                                     </button>
                                                 </div>
                                             </div>
@@ -310,14 +313,14 @@ export default function VideoPanel({ project, onClose, onFramesExtracted }) {
                                         {/* Done summary */}
                                         {isDone && (
                                             <div className="vp-done-summary">
-                                                ✓ {video.frames_extracted} frames extracted and added to the image list
+                                                <Check size={14} /> {video.frames_extracted} frames extracted and added to the image list
                                             </div>
                                         )}
 
                                         {/* Stopped summary */}
                                         {isStopped && (
                                             <div className="vp-stopped-summary">
-                                                ⬛ Stopped — {video.frames_extracted} frame{video.frames_extracted !== 1 ? 's' : ''} kept. Adjust settings and re-extract if needed.
+                                                <Square size={14} /> Stopped — {video.frames_extracted} frame{video.frames_extracted !== 1 ? 's' : ''} kept. Adjust settings and re-extract if needed.
                                             </div>
                                         )}
 
