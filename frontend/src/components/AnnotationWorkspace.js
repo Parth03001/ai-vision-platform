@@ -9,6 +9,7 @@ import LabelsPanel from './LabelsPanel';
 import ModelsPanel from './ModelsPanel';
 import ReviewPanel from './ReviewPanel';
 import VideoPanel from './VideoPanel';
+import ActiveLearningPanel from './ActiveLearningPanel';
 import './AnnotationWorkspace.css';
 
 import { API_URL } from '../config';
@@ -135,6 +136,7 @@ const AnnotationWorkspace = ({ project, onProjectUpdated }) => {
     const [showModelsPanel, setShowModelsPanel] = useState(false);
     const [showReviewPanel, setShowReviewPanel] = useState(false);
     const [showVideoPanel, setShowVideoPanel] = useState(false);
+    const [showActiveLearningPanel, setShowActiveLearningPanel] = useState(false);
     // Local copy of classes so edits from LabelsPanel are reflected instantly
     const [localClasses, setLocalClasses] = useState(project.classes || []);
     const [aiPrompt, setAiPrompt] = useState('');
@@ -538,6 +540,9 @@ Do you want to proceed?`;
                     </button>
                     <button className="btn-action btn-action-secondary" onClick={startAutoAnnotation}>
                         ✨ Auto-Annotate
+                    </button>
+                    <button className="btn-action btn-action-al" onClick={() => setShowActiveLearningPanel(true)}>
+                        🧠 Active Learning
                     </button>
                     <button
                         className="btn-action btn-action-review"
@@ -963,6 +968,18 @@ Do you want to proceed?`;
                     onClose={() => setShowVideoPanel(false)}
                     onFramesExtracted={() => {
                         // Refresh image list so extracted frames appear
+                        axios.get(`${API_URL}/images/project/${project.id}`)
+                            .then(res => setImages(res.data))
+                            .catch(() => {});
+                    }}
+                />
+            )}
+            {showActiveLearningPanel && (
+                <ActiveLearningPanel
+                    project={project}
+                    onClose={() => setShowActiveLearningPanel(false)}
+                    onAnnotationsUpdated={() => {
+                        // Refresh image list so curriculum-annotated images are reflected
                         axios.get(`${API_URL}/images/project/${project.id}`)
                             .then(res => setImages(res.data))
                             .catch(() => {});

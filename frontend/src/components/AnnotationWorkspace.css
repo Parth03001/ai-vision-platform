@@ -333,6 +333,16 @@
   cursor: not-allowed;
 }
 
+.btn-action-al {
+  background: rgba(52, 211, 153, 0.08);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.22);
+}
+.btn-action-al:hover:not(:disabled) {
+  background: rgba(52, 211, 153, 0.16);
+  border-color: #10b981;
+}
+
 /* ── Canvas Area ────────────────────────────────────── */
 .workspace-canvas-area {
   flex: 1;
