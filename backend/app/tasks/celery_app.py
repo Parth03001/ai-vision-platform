@@ -10,6 +10,7 @@ celery_app = Celery(
         "app.tasks.auto_annotate",
         "app.tasks.ai_prompt",
         "app.tasks.video_processing",
+        "app.tasks.active_learning",
     ],
 )
 
