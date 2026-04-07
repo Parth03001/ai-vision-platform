@@ -139,6 +139,7 @@ const AnnotationWorkspace = ({ project, onProjectUpdated }) => {
     const [showReviewPanel, setShowReviewPanel] = useState(false);
     const [showVideoPanel, setShowVideoPanel] = useState(false);
     const [showActiveLearningPanel, setShowActiveLearningPanel] = useState(false);
+    const [suggestedImageIds, setSuggestedImageIds] = useState(null); // Set<id> or null
     // Local copy of classes so edits from LabelsPanel are reflected instantly
     const [localClasses, setLocalClasses] = useState(project.classes || []);
     const [aiPrompt, setAiPrompt] = useState('');
@@ -334,6 +335,15 @@ Do you want to proceed?`;
     const showStatus = (msg) => {
         setStatusMsg(msg);
         setTimeout(() => setStatusMsg(null), 3500);
+    };
+
+    // Called from ActiveLearningPanel when user clicks "Annotate These"
+    const handleAnnotateImages = (imageIds) => {
+        const idSet = new Set(imageIds.map(String));
+        setSuggestedImageIds(idSet);
+        // Navigate to first suggested image that exists in the list
+        const first = images.find(img => idSet.has(String(img.id)));
+        if (first) handleImageClick(first);
     };
 
     const handleImageClick = (image) => {
@@ -618,19 +628,30 @@ Do you want to proceed?`;
                         </div>
                     ) : (
                         <>
-                            {images.map(img => (
+                            {/* AL suggestion filter banner */}
+                            {suggestedImageIds && (
+                                <div className="al-filter-banner">
+                                    <span><Target size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{suggestedImageIds.size} suggested</span>
+                                    <button className="al-filter-clear" onClick={() => setSuggestedImageIds(null)}>Clear</button>
+                                </div>
+                            )}
+                            {images.map(img => {
+                                const isSuggested = suggestedImageIds?.has(String(img.id));
+                                return (
                                 <div
                                     key={img.id}
-                                    className={`image-item ${currentImage?.id === img.id ? 'active' : ''}`}
+                                    className={`image-item ${currentImage?.id === img.id ? 'active' : ''} ${isSuggested ? 'image-item--suggested' : ''}`}
                                     onClick={() => handleImageClick(img)}
                                 >
                                     <span className="image-item-dot"></span>
                                     <span className="image-item-name">{img.filename}</span>
+                                    {isSuggested && <span className="image-item-al-badge"><Target size={9} /></span>}
                                     <span className={`image-item-status status-${img.status}`}>
                                         {img.status}
                                     </span>
                                 </div>
-                            ))}
+                                );
+                            })}
                             {/* Drop overlay shown on top of the list while dragging */}
                             {isDragOver && (
                                 <div className="drop-overlay">
@@ -983,6 +1004,7 @@ Do you want to proceed?`;
                 <ActiveLearningPanel
                     project={project}
                     onClose={() => setShowActiveLearningPanel(false)}
+                    onAnnotateImages={handleAnnotateImages}
                     onAnnotationsUpdated={() => {
                         // Refresh image list so curriculum-annotated images are reflected
                         axios.get(`${API_URL}/images/project/${project.id}`)

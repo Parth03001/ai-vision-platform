@@ -233,6 +233,47 @@
   color: #16a34a;
 }
 
+/* ── AL suggestion highlighting ─────────────────────── */
+.al-filter-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: rgba(220, 20, 60, 0.06);
+  border-bottom: 1px solid rgba(220, 20, 60, 0.15);
+  font-size: 11px;
+  font-weight: 600;
+  color: #dc143c;
+  flex-shrink: 0;
+}
+.al-filter-clear {
+  background: none;
+  border: 1px solid rgba(220, 20, 60, 0.3);
+  color: #dc143c;
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.al-filter-clear:hover { background: rgba(220, 20, 60, 0.08); }
+
+.image-item--suggested {
+  border-left: 2px solid rgba(220, 20, 60, 0.4) !important;
+  background: rgba(220, 20, 60, 0.03);
+}
+.image-item--suggested:hover { background: rgba(220, 20, 60, 0.07); }
+.image-item--suggested .image-item-name { color: #1a1a1a; }
+
+.image-item-al-badge {
+  display: flex;
+  align-items: center;
+  color: #dc143c;
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+
 /* ── Sidebar Actions ────────────────────────────────── */
 .sidebar-actions {
   display: flex;

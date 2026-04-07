@@ -234,6 +234,7 @@ def score_unlabeled_images(
     -------
     dict with ``scored_images`` — list of {image_id, filename, scores, rank}.
     """
+    import time
     db = StateDBConnector()
 
     # ── 1. Load model ──────────────────────────────────────────────
@@ -257,15 +258,25 @@ def score_unlabeled_images(
     if not img_rows:
         return {"error": "No pending images to score"}
 
-    total = len(img_rows)
-    scored = []
+    total    = len(img_rows)
+    scored   = []
+    start_ts = time.time()
 
     # ── 3. Score each image ────────────────────────────────────────
     for idx, img in enumerate(img_rows):
+        elapsed  = time.time() - start_ts
+        rate     = (idx + 1) / elapsed if elapsed > 0 else 0
+        eta_secs = int((total - idx - 1) / rate) if rate > 0 else None
+
         if self.request.id:
             self.update_state(
                 state="STARTED",
-                meta={"current": idx + 1, "total": total, "strategy": strategy},
+                meta={
+                    "current":  idx + 1,
+                    "total":    total,
+                    "strategy": strategy,
+                    "eta_secs": eta_secs,
+                },
             )
 
         real_path = _resolve_image_path(img["filepath"])
@@ -366,7 +377,7 @@ def curriculum_auto_annotate(
     use_tta : bool
         Use TTA during prediction for more robust detections.
     """
-    import uuid
+    import uuid, time
 
     db = StateDBConnector()
 
@@ -398,7 +409,8 @@ def curriculum_auto_annotate(
     if not img_rows:
         return {"error": "No pending images to annotate"}
 
-    total = len(img_rows)
+    total    = len(img_rows)
+    start_ts = time.time()
     stats = {
         "auto_accepted": 0,
         "sent_to_review": 0,
@@ -409,19 +421,22 @@ def curriculum_auto_annotate(
 
     self.update_state(
         state="STARTED",
-        meta={"current": 0, "total": total, **stats},
+        meta={"current": 0, "total": total, "eta_secs": None, **stats},
     )
 
     # ── 3. Score and annotate with curriculum tiers ────────────────
     with db.get_session() as conn:
         for idx, img in enumerate(img_rows):
+            elapsed  = time.time() - start_ts
+            rate     = (idx + 1) / elapsed if elapsed > 0 else 0
+            eta_secs = int((total - idx - 1) / rate) if rate > 0 else None
 
             real_path = _resolve_image_path(img["filepath"])
             if real_path is None:
                 stats["skipped_path"] += 1
                 self.update_state(
                     state="STARTED",
-                    meta={"current": idx + 1, "total": total, **stats},
+                    meta={"current": idx + 1, "total": total, "eta_secs": eta_secs, **stats},
                 )
                 continue
 
@@ -454,7 +469,7 @@ def curriculum_auto_annotate(
                 stats["skipped_no_det"] += 1
                 self.update_state(
                     state="STARTED",
-                    meta={"current": idx + 1, "total": total, **stats},
+                    meta={"current": idx + 1, "total": total, "eta_secs": eta_secs, **stats},
                 )
                 continue
 
@@ -472,7 +487,7 @@ def curriculum_auto_annotate(
                 stats["skipped_low_conf"] += 1
                 self.update_state(
                     state="STARTED",
-                    meta={"current": idx + 1, "total": total, **stats},
+                    meta={"current": idx + 1, "total": total, "eta_secs": eta_secs, **stats},
                 )
                 continue
 
@@ -505,7 +520,7 @@ def curriculum_auto_annotate(
 
             self.update_state(
                 state="STARTED",
-                meta={"current": idx + 1, "total": total, **stats},
+                meta={"current": idx + 1, "total": total, "eta_secs": eta_secs, **stats},
             )
 
     return {
@@ -536,32 +551,106 @@ def suggest_for_review(
     This is the core "active learning query" — it tells the user exactly
     which images to label to get the biggest bang for their annotation buck.
     """
-    result = score_unlabeled_images(
-        project_id=project_id,
-        model_type="seed",
-        strategy=strategy,
-        top_k=budget,
-        use_tta=True,
-        conf=0.1,
-    )
+    import time
 
-    if "error" in result:
-        return result
+    db = StateDBConnector()
 
-    suggestions = []
-    for item in result.get("scored_images", []):
-        suggestions.append({
-            "image_id": item["image_id"],
-            "filename": item["filename"],
-            "uncertainty": item["combined_score"],
-            "reason": _explain_uncertainty(item),
+    # ── 1. Load seed model ─────────────────────────────────────────
+    model_path = settings.model_dir.resolve() / project_id / "seed_best.pt"
+    if not model_path.exists():
+        return {"error": "Seed model not found. Train the seed model first."}
+
+    model = YOLO(str(model_path))
+    n_classes = len(model.names)
+
+    # ── 2. Fetch pending images ────────────────────────────────────
+    with db.get_session() as conn:
+        img_rows = db.execute_query(
+            conn,
+            "SELECT id, filename, filepath FROM images "
+            "WHERE project_id = :pid AND status = 'pending'",
+            {"pid": project_id},
+        )
+
+    if not img_rows:
+        return {"error": "No pending images to score"}
+
+    total    = len(img_rows)
+    scored   = []
+    start_ts = time.time()
+
+    # ── 3. Score each image with progress + ETA ────────────────────
+    for idx, img in enumerate(img_rows):
+        elapsed  = time.time() - start_ts
+        rate     = (idx + 1) / elapsed if elapsed > 0 else 0
+        eta_secs = int((total - idx - 1) / rate) if rate > 0 else None
+
+        if self.request.id:
+            self.update_state(
+                state="STARTED",
+                meta={
+                    "current":  idx + 1,
+                    "total":    total,
+                    "strategy": strategy,
+                    "eta_secs": eta_secs,
+                },
+            )
+
+        real_path = _resolve_image_path(img["filepath"])
+        if real_path is None:
+            continue
+
+        path_str = str(real_path)
+
+        try:
+            results = model.predict(path_str, conf=0.1, verbose=False)
+        except Exception:
+            continue
+
+        conf_score = score_confidence(results)
+        ent_score  = score_entropy(results, n_classes)
+        tta_score  = score_tta_disagreement(model, path_str, conf=0.1)
+
+        if strategy == "confidence":
+            sort_key = conf_score["uncertainty"]
+        elif strategy == "entropy":
+            sort_key = ent_score["mean_entropy"]
+        elif strategy == "tta":
+            sort_key = (tta_score or {}).get("tta_disagreement", 0.0)
+        else:
+            sort_key = compute_combined_score(conf_score, ent_score, tta_score)
+
+        scored.append({
+            "image_id":      img["id"],
+            "filename":      img.get("filename") or img["filepath"],
+            "confidence":    conf_score,
+            "entropy":       ent_score,
+            "tta":           tta_score,
+            "combined_score": sort_key,
         })
 
+    # ── 4. Sort and pick top-budget ────────────────────────────────
+    scored.sort(key=lambda x: x["combined_score"], reverse=True)
+    for rank, item in enumerate(scored, 1):
+        item["rank"] = rank
+
+    top = scored[:budget]
+
+    suggestions = [
+        {
+            "image_id":   item["image_id"],
+            "filename":   item["filename"],
+            "uncertainty": item["combined_score"],
+            "reason":     _explain_uncertainty(item),
+        }
+        for item in top
+    ]
+
     return {
-        "status": "success",
-        "budget": budget,
-        "suggestions": suggestions,
-        "total_pending": result.get("total_pending", 0),
+        "status":        "success",
+        "budget":        budget,
+        "suggestions":   suggestions,
+        "total_pending": total,
     }
 
 

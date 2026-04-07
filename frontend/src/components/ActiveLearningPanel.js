@@ -4,10 +4,18 @@ import './ActiveLearningPanel.css';
 import {
     Brain, Target, Layers, BarChart2, X, RefreshCw,
     Clipboard, Square, ChevronLeft, AlertTriangle,
-    Check, Zap, Inbox, Play, Circle,
+    Check, Zap, Inbox, Play, Circle, Pencil,
 } from 'lucide-react';
 
 import { API_URL } from '../config';
+
+// ── ETA formatter ────────────────────────────────────────────────
+const fmtEta = (secs) => {
+    if (secs == null || secs <= 0) return null;
+    if (secs < 60)  return `~${secs}s left`;
+    if (secs < 3600) return `~${Math.ceil(secs / 60)}m left`;
+    return `~${Math.ceil(secs / 3600)}h left`;
+};
 
 const POLL_INTERVAL   = 2500;
 const NO_WORKER_TICKS = 15; // ~37s
@@ -65,13 +73,51 @@ const makeJob = (taskId, mode, config) => ({
     startedAt: new Date(),
 });
 
+// ── ProgressBar ──────────────────────────────────────────────────
+const ProgressBar = ({ progress }) => {
+    if (!progress?.total) return null;
+    const pct     = Math.round((progress.current / progress.total) * 100);
+    const eta     = fmtEta(progress.eta_secs);
+    const skipped = progress.skipped_path ?? 0;
+    return (
+        <div className="alp-progress">
+            <div className="alp-progress-header">
+                <span className="alp-progress-label">
+                    Image <strong>{progress.current}</strong> / {progress.total}
+                </span>
+                {eta && <span className="alp-progress-eta">{eta}</span>}
+                <span className="alp-progress-pct">{pct}%</span>
+            </div>
+            <div className="alp-progress-bar">
+                <div className="alp-progress-fill" style={{ width: `${pct}%` }} />
+            </div>
+            {/* Live curriculum stats */}
+            {(progress.auto_accepted != null) && (
+                <div className="alp-progress-stats">
+                    <span className="alp-pstat alp-pstat--auto">✓ {progress.auto_accepted} auto</span>
+                    <span className="alp-pstat alp-pstat--review">~ {progress.sent_to_review} review</span>
+                    <span className="alp-pstat alp-pstat--skip">— {(progress.skipped_low_conf ?? 0) + (progress.skipped_no_det ?? 0)} skipped</span>
+                    {skipped > 0 && <span className="alp-pstat alp-pstat--err">⚠ {skipped} not found</span>}
+                </div>
+            )}
+        </div>
+    );
+};
+
 // ── ScoreResultTable ─────────────────────────────────────────────
-const ScoreResultTable = ({ items, label }) => {
+const ScoreResultTable = ({ items, label, onAnnotate }) => {
     if (!items || items.length === 0) return null;
     return (
         <div className="alp-result-table-wrap">
-            <div className="alp-result-table-title">
-                {label} <span className="alp-result-count">({items.length})</span>
+            <div className="alp-result-table-header">
+                <div className="alp-result-table-title">
+                    {label} <span className="alp-result-count">({items.length})</span>
+                </div>
+                {onAnnotate && (
+                    <button className="alp-annotate-btn" onClick={() => onAnnotate(items.map(i => i.image_id))}>
+                        <Pencil size={12} /> Annotate These
+                    </button>
+                )}
             </div>
             <div className="alp-result-table">
                 {items.map((item, i) => (
@@ -131,7 +177,7 @@ const CurriculumResult = ({ result }) => {
 // ════════════════════════════════════════════════════════════
 //  ActiveLearningPanel
 // ════════════════════════════════════════════════════════════
-const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
+const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated, onAnnotateImages }) => {
     const [view, setView]               = useState('setup');
     const [modelStatus, setModelStatus] = useState(null);
     const [mode, setMode]               = useState('suggest');
@@ -707,24 +753,7 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
                                         )}
 
                                         {/* Progress bar */}
-                                        {activeJob.progress?.total > 0 && (
-                                            <div className="alp-progress">
-                                                <div className="alp-progress-header">
-                                                    <span className="alp-progress-label">
-                                                        Image <strong>{activeJob.progress.current}</strong> / {activeJob.progress.total}
-                                                    </span>
-                                                    <span className="alp-progress-pct">
-                                                        {Math.round(activeJob.progress.current / activeJob.progress.total * 100)}%
-                                                    </span>
-                                                </div>
-                                                <div className="alp-progress-bar">
-                                                    <div
-                                                        className="alp-progress-fill"
-                                                        style={{ width: `${Math.round(activeJob.progress.current / activeJob.progress.total * 100)}%` }}
-                                                    />
-                                                </div>
-                                            </div>
-                                        )}
+                                        <ProgressBar progress={activeJob.progress} />
 
                                         {/* Log */}
                                         <div className="alp-section-label" style={{ marginBottom: 6 }}>Log</div>
@@ -747,12 +776,20 @@ const ActiveLearningPanel = ({ project, onClose, onAnnotationsUpdated }) => {
                                                             ...s, rank: i + 1, combined_score: s.uncertainty,
                                                         }))}
                                                         label="Suggested Images to Annotate Manually"
+                                                        onAnnotate={onAnnotateImages ? (ids) => {
+                                                            onAnnotateImages(ids);
+                                                            onClose();
+                                                        } : undefined}
                                                     />
                                                 )}
                                                 {activeJob.mode === 'score' && (
                                                     <ScoreResultTable
                                                         items={activeJob.result.scored_images}
                                                         label="Images Ranked by Uncertainty"
+                                                        onAnnotate={onAnnotateImages ? (ids) => {
+                                                            onAnnotateImages(ids);
+                                                            onClose();
+                                                        } : undefined}
                                                     />
                                                 )}
                                             </>
