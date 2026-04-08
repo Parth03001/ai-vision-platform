@@ -64,10 +64,17 @@ class StateDBManager:
         1. Connect to the ``postgres`` system database.
         2. Create the target database if it does not exist.
         3. Create all application tables (idempotent via ``checkfirst=True``).
+        4. Run schema migrations (idempotent ALTER TABLE / CREATE INDEX).
         """
         self._ensure_database_exists()
         self.create_tables_if_not_exists()
+        self._run_migrations()
         logger.info("StateDBManager: database fully initialised.")
+
+    def _run_migrations(self) -> None:
+        """Apply incremental schema migrations (safe to run every startup)."""
+        from .migrations import run_migrations
+        run_migrations()
 
     def create_tables_if_not_exists(self) -> None:
         """
