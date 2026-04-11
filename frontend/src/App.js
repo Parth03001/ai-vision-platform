@@ -139,10 +139,7 @@ function App() {
             <header className="app-header">
                 <div className="app-header-inner">
                     <div className="app-logo">
-                        <span className="app-logo-icon">
-                            <Eye size={22} />
-                        </span>
-                        <span className="app-logo-text">AI Vision Platform</span>
+                        <img src={logoImg} alt="Logo" className="app-logo-img" />
                     </div>
 
                     {currentProject && (
@@ -159,7 +156,6 @@ function App() {
                     )}
 
                     <div className="app-user">
-                        <img src={logoImg} alt="Logo" className="app-logo-img" />
                         <span className="app-user-avatar">
                             {currentUser?.name?.[0]?.toUpperCase() || '?'}
                         </span>
