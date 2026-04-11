@@ -92,7 +92,7 @@ const LandingPage = ({ onLogin, onGetStarted }) => {
             <nav className={`lnd-nav ${scrolled ? 'lnd-nav--scrolled' : ''}`}>
                 <div className="lnd-nav-inner">
                     <div className="lnd-brand">
-                        <span className="lnd-brand-icon"><Eye size={20} /></span>
+                        <img src={logoImg} alt="Logo" style={{ height: 20, width: 'auto', objectFit: 'contain' }} />
                         <span className="lnd-brand-text">AI Vision Platform</span>
                     </div>
                     <div className="lnd-nav-links">
@@ -102,7 +102,6 @@ const LandingPage = ({ onLogin, onGetStarted }) => {
                     <div className="lnd-nav-ctas">
                         <button className="lnd-btn-ghost" onClick={onLogin}>Sign In</button>
                         <button className="lnd-btn-primary" onClick={onGetStarted}>Get Started</button>
-                        <img src={logoImg} alt="Logo" style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
                     </div>
                 </div>
             </nav>
