@@ -3,10 +3,9 @@
   <head>
     <meta charset="utf-8" />
 
-    <!-- Crimson AI Vision favicon — SVG scales to any size, ICO fallback for legacy -->
-    <link rel="icon" type="image/svg+xml" href="%PUBLIC_URL%/favicon.svg" />
-    <!-- Fallback .ico for older browsers -->
-    <link rel="alternate icon" href="%PUBLIC_URL%/favicon.ico" />
+    <!-- Favicon: ICO first (legacy fallback), SVG second (modern browsers prefer last match) -->
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" sizes="32x32" type="image/x-icon" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.svg" type="image/svg+xml" />
 
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
