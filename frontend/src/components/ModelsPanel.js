@@ -315,7 +315,6 @@ const ModelsPanel = ({ project, onClose, onGoToTrain }) => {
                 {/* ── Panel header ───────────────────────────── */}
                 <div className="mp-header">
                     <div className="mp-header-left">
-                        <img src={logoImg} alt="Logo" style={{ height: 32, objectFit: 'contain' }} />
                         <div className="mp-header-icon"><Eye size={20} /></div>
                         <div>
                             <h2 className="mp-header-title">Trained Models</h2>

@@ -338,8 +338,6 @@ const ProjectList = ({ onProjectSelect, user }) => {
                         </button>
                     </div>
 
-                    {/* Logo — top right of hero */}
-                    <img src={logoImg} alt="Logo" style={{ height: 40, width: 'auto', objectFit: 'contain', position: 'absolute', top: 16, right: 32 }} />
                 </div>
             </div>
 

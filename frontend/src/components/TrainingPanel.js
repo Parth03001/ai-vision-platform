@@ -537,7 +537,6 @@ const TrainingPanel = ({ project, onClose }) => {
                 {/* ── Header ── */}
                 <div className="tp-header">
                     <div className="tp-header-left">
-                        <img src={logoImg} alt="Logo" style={{ height: 32, objectFit: 'contain' }} />
                         <span className="tp-header-icon"><Rocket size={20} /></span>
                         <div>
                             <h2 className="tp-title">Train Seed Model</h2>

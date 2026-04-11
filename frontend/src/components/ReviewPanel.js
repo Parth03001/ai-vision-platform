@@ -275,7 +275,6 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
                             <div className="rp-header-title">Review Annotations</div>
                             <div className="rp-header-sub">{project.name}</div>
                         </div>
-                        <img src={logoImg} alt="Logo" style={{ height: 32, width: 'auto', objectFit: 'contain', marginLeft: 8 }} />
                     </div>
 
                     <div className="rp-header-center">

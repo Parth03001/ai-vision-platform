@@ -551,7 +551,6 @@ const MainTrainingPanel = ({ project, onClose }) => {
                 {/* ── Header ── */}
                 <div className="mtp-header">
                     <div className="mtp-header-left">
-                        <img src={logoImg} alt="Logo" style={{ height: 32, objectFit: 'contain' }} />
                         <span className="mtp-header-icon"><Brain size={20} /></span>
                         <div>
                             <h2 className="mtp-title">Train Main Model</h2>

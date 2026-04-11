@@ -183,7 +183,6 @@ export default function VideoPanel({ project, onClose, onFramesExtracted }) {
                 {/* Header */}
                 <div className="vp-header">
                     <div className="vp-header-left">
-                        <img src={logoImg} alt="Logo" style={{ height: 32, objectFit: 'contain' }} />
                         <span className="vp-header-icon"><Film size={20} /></span>
                         <div>
                             <h2 className="vp-title">Video Import</h2>

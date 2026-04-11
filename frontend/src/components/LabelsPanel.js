@@ -218,7 +218,6 @@ const LabelsPanel = ({ project, onClose, onLabelsUpdated }) => {
                             <p className="lp-subtitle">{project.name}</p>
                         </div>
                     </div>
-                    <img src={logoImg} alt="Logo" style={{ height: 32, width: 'auto', objectFit: 'contain' }} />
                     <button className="lp-close" onClick={onClose}><X size={18} /></button>
                 </div>
 
