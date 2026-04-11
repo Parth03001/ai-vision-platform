@@ -102,6 +102,13 @@ projects_table = create_dynamic_table(
         server_default=func.now(),
         comment="Row creation timestamp (UTC)",
     ),
+    Column(
+        "user_id",
+        String(36),
+        nullable=True,
+        index=True,
+        comment="Owner user ID (FK to users.id)",
+    ),
 )
 
 # ─────────────────────────────────────────────────────────────────────────────

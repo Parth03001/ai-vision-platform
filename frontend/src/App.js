@@ -17,14 +17,22 @@ if (savedToken) {
 }
 
 // ── Auto-logout on 401 from any request ──────────────────────────
+// Compare the token used in the failing request against the current
+// token so stale in-flight requests from a previous session never
+// accidentally kick the freshly-logged-in user back to the landing page.
 axios.interceptors.response.use(
     res => res,
     err => {
         if (err.response?.status === 401) {
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('auth_user');
-            delete axios.defaults.headers.common['Authorization'];
-            window.dispatchEvent(new Event('auth:logout'));
+            const requestToken = err.config?.headers?.['Authorization'];
+            const currentToken = localStorage.getItem('auth_token');
+            const currentHeader = currentToken ? `Bearer ${currentToken}` : null;
+            if (!currentHeader || requestToken === currentHeader) {
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('auth_user');
+                delete axios.defaults.headers.common['Authorization'];
+                window.dispatchEvent(new Event('auth:logout'));
+            }
         }
         return Promise.reject(err);
     }

@@ -224,13 +224,14 @@ const ProjectList = ({ onProjectSelect, user }) => {
     const [deletedIds, setDeletedIds]       = useState(new Set()); // for fade-out animation
 
     useEffect(() => {
+        if (!user) return;
         setLoading(true);
         setError(null);
         axios.get(`${API_URL}/projects`)
             .then(res => setProjects(res.data))
             .catch(() => setError('Could not load projects. Make sure the server is running.'))
             .finally(() => setLoading(false));
-    }, []);
+    }, [user]);
 
     const createProject = () => {
         if (!newName.trim()) return;
