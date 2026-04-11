@@ -140,6 +140,7 @@ function App() {
                 <div className="app-header-inner">
                     <div className="app-logo">
                         <img src={logoImg} alt="Logo" className="app-logo-img" />
+                        <span className="app-logo-text">AI Vision Platform</span>
                     </div>
 
                     {currentProject && (
