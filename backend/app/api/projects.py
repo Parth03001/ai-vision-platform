@@ -9,21 +9,13 @@ from ..models.user import User
 from ..schemas.base import ProjectCreate, ProjectResponse, ProjectUpdateRequest, ClassRenameRequest
 from ..config import settings
 from ..api.auth import get_current_user
+from ..api.deps import get_owned_project
 from typing import List, Dict
 import shutil
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
-async def _get_owned_project(project_id: str, current_user: User, db: AsyncSession) -> Project:
-    """Fetch a project and verify it belongs to the current user."""
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    if project.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
-    return project
 
 
 @router.post("", response_model=ProjectResponse)
@@ -59,7 +51,7 @@ async def get_project(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    return await _get_owned_project(project_id, current_user, db)
+    return await get_owned_project(project_id, current_user, db)
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)
@@ -70,7 +62,7 @@ async def update_project(
     db: AsyncSession = Depends(get_db),
 ):
     """Update project name, description, or classes list."""
-    project = await _get_owned_project(project_id, current_user, db)
+    project = await get_owned_project(project_id, current_user, db)
 
     if data.name is not None:
         project.name = data.name
@@ -92,7 +84,7 @@ async def rename_class(
     db: AsyncSession = Depends(get_db),
 ):
     """Rename a class in project.classes AND in all existing annotations."""
-    project = await _get_owned_project(project_id, current_user, db)
+    project = await get_owned_project(project_id, current_user, db)
 
     # Replace in the classes list
     updated_classes = [
@@ -130,6 +122,7 @@ async def delete_class_annotations(
     db: AsyncSession = Depends(get_db),
 ):
     """Delete all annotations that use a specific class_name in a project."""
+    await get_owned_project(project_id, current_user, db)
     image_ids_subq = (
         select(Image.id).where(Image.project_id == project_id).scalar_subquery()
     )
@@ -153,6 +146,7 @@ async def get_class_stats(
     db: AsyncSession = Depends(get_db),
 ) -> Dict[str, int]:
     """Return annotation count per class_name for a project."""
+    await get_owned_project(project_id, current_user, db)
     image_ids_subq = (
         select(Image.id).where(Image.project_id == project_id).scalar_subquery()
     )
@@ -178,7 +172,7 @@ async def delete_project(
       - Training jobs (DB-level FK ON DELETE CASCADE)
       - Uploaded files on disk
     """
-    project = await _get_owned_project(project_id, current_user, db)
+    project = await get_owned_project(project_id, current_user, db)
 
     # ORM delete — cascades to images → annotations automatically
     await db.delete(project)

@@ -9,7 +9,8 @@ Workflow
 2. GET  /videos/project/{project_id}  — list all videos in a project
 3. GET  /videos/{video_id}            — single video status/metadata
 4. POST /videos/{video_id}/extract-frames — kick off the Celery frame-extraction task
-5. DELETE /videos/{video_id}          — remove video + extracted frame Image rows
+5. POST /videos/{video_id}/stop-extraction — cancel a running extraction
+6. DELETE /videos/{video_id}          — remove video + extracted frame Image rows
 """
 
 import os
@@ -24,8 +25,11 @@ from sqlalchemy import select, delete
 from ..database import get_db
 from ..models.video import Video
 from ..models.image import Image
+from ..models.user import User
 from ..schemas.base import VideoResponse, VideoFrameExtractionRequest
 from ..config import settings
+from ..api.auth import get_current_user
+from ..api.deps import get_owned_project, get_owned_video
 
 router = APIRouter(prefix="/videos", tags=["videos"])
 
@@ -37,9 +41,12 @@ _ALLOWED_VIDEO_EXTS = {".mp4", ".avi", ".mov", ".mkv", ".webm", ".m4v", ".flv"}
 async def upload_video(
     project_id: str,
     file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Upload a single video file and create a Video record."""
+    await get_owned_project(project_id, current_user, db)
+
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in _ALLOWED_VIDEO_EXTS:
         raise HTTPException(
@@ -53,13 +60,11 @@ async def upload_video(
     unique_filename = f"{uuid.uuid4()}{ext}"
     file_path = video_dir / unique_filename
 
-    # Stream to disk
     with open(file_path, "wb") as buf:
         shutil.copyfileobj(file.file, buf)
 
     file_size = file_path.stat().st_size
 
-    # Create DB record (metadata like fps/duration populated after extraction)
     db_video = Video(
         project_id=project_id,
         original_filename=file.filename or unique_filename,
@@ -76,9 +81,11 @@ async def upload_video(
 @router.get("/project/{project_id}", response_model=List[VideoResponse])
 async def list_project_videos(
     project_id: str,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Return all videos belonging to a project."""
+    await get_owned_project(project_id, current_user, db)
     result = await db.execute(
         select(Video)
         .where(Video.project_id == project_id)
@@ -88,18 +95,20 @@ async def list_project_videos(
 
 
 @router.get("/{video_id}", response_model=VideoResponse)
-async def get_video(video_id: str, db: AsyncSession = Depends(get_db)):
+async def get_video(
+    video_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Fetch a single video by ID (useful for polling extraction status)."""
-    video = await db.get(Video, video_id)
-    if not video:
-        raise HTTPException(status_code=404, detail="Video not found")
-    return video
+    return await get_owned_video(video_id, current_user, db)
 
 
 @router.post("/{video_id}/extract-frames", response_model=VideoResponse)
 async def extract_frames(
     video_id: str,
     body: VideoFrameExtractionRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -107,14 +116,11 @@ async def extract_frames(
     Returns the video record immediately (status will be 'extracting').
     The frontend should poll GET /videos/{video_id} to watch progress.
     """
-    video = await db.get(Video, video_id)
-    if not video:
-        raise HTTPException(status_code=404, detail="Video not found")
+    video = await get_owned_video(video_id, current_user, db)
 
     if video.status == "extracting":
         raise HTTPException(status_code=409, detail="Extraction already in progress")
 
-    # Import here to avoid circular imports at module load
     from ..tasks.video_processing import extract_video_frames
 
     task = extract_video_frames.delay(
@@ -132,15 +138,13 @@ async def extract_frames(
 
 
 @router.post("/{video_id}/stop-extraction", response_model=VideoResponse)
-async def stop_extraction(video_id: str, db: AsyncSession = Depends(get_db)):
-    """
-    Cancel a running frame-extraction task.
-    Revokes the Celery task and resets the video status to 'stopped'
-    so the user can re-configure and re-extract.
-    """
-    video = await db.get(Video, video_id)
-    if not video:
-        raise HTTPException(status_code=404, detail="Video not found")
+async def stop_extraction(
+    video_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Cancel a running frame-extraction task."""
+    video = await get_owned_video(video_id, current_user, db)
 
     if video.status != "extracting":
         raise HTTPException(status_code=409, detail="No extraction in progress")
@@ -157,15 +161,13 @@ async def stop_extraction(video_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.delete("/{video_id}", status_code=204)
-async def delete_video(video_id: str, db: AsyncSession = Depends(get_db)):
-    """
-    Delete a video and all Image rows that were extracted from it.
-    The Image rows reference a filepath under video_frames/{video_id}/,
-    so we can identify them by that path prefix.
-    """
-    video = await db.get(Video, video_id)
-    if not video:
-        raise HTTPException(status_code=404, detail="Video not found")
+async def delete_video(
+    video_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a video and all Image rows that were extracted from it."""
+    video = await get_owned_video(video_id, current_user, db)
 
     # Delete extracted frame Image rows (identified by filepath pattern)
     frame_path_prefix = f"/uploads/{video.project_id}/video_frames/{video_id}/"

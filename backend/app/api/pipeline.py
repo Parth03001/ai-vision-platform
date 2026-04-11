@@ -18,6 +18,9 @@ from ..models.image import Image
 from ..models.annotation import Annotation
 from ..models.project import Project
 from ..models.training_job import TrainingJob
+from ..models.user import User
+from ..api.auth import get_current_user
+from ..api.deps import get_owned_project
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
 from celery.result import AsyncResult
@@ -69,7 +72,6 @@ YOLO_MODELS = [
 @router.get("/available-models")
 async def get_available_models():
     """Return the list of supported YOLO model weights for the UI dropdowns."""
-    # Group by family for the frontend <optgroup>
     families: dict = {}
     for m in YOLO_MODELS:
         families.setdefault(m["family"], []).append(
@@ -85,11 +87,17 @@ class TrainSeedRequest(BaseModel):
     epochs: int = 100
     imgsz: int = 640
     preprocess: bool = True
-    batch: int = -1   # -1 = YOLO auto-batch (safe for any VRAM)
+    batch: int = -1
 
 
 @router.post("/train-seed/{project_id}")
-async def start_seed_training(project_id: str, body: TrainSeedRequest = None):
+async def start_seed_training(
+    project_id: str,
+    body: TrainSeedRequest = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await get_owned_project(project_id, current_user, db)
     req = body or TrainSeedRequest()
     task = train_seed_model.delay(
         project_id, req.model_name, req.epochs, req.imgsz, req.preprocess, req.batch
@@ -103,11 +111,17 @@ class TrainMainRequest(BaseModel):
     use_seed_weights: bool = True
     imgsz: int = 640
     preprocess: bool = True
-    batch: int = -1   # -1 = YOLO auto-batch (safe for any VRAM)
+    batch: int = -1
 
 
 @router.post("/train-main/{project_id}")
-async def start_main_training(project_id: str, body: TrainMainRequest = None):
+async def start_main_training(
+    project_id: str,
+    body: TrainMainRequest = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await get_owned_project(project_id, current_user, db)
     req = body or TrainMainRequest()
     task = train_main_model.delay(
         project_id, req.model_name, req.epochs,
@@ -117,13 +131,17 @@ async def start_main_training(project_id: str, body: TrainMainRequest = None):
 
 
 @router.get("/clahe-preview/{project_id}")
-async def get_clahe_preview(project_id: str, db: AsyncSession = Depends(get_db)):
+async def get_clahe_preview(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """
     Return a before/after CLAHE preview using the first annotated image in the
-    project.  Both images are returned as base64-encoded JPEG data URIs so the
-    frontend can render them without an extra authenticated fetch.
+    project.  Both images are returned as base64-encoded JPEG data URIs.
     """
-    from sqlalchemy import select
+    await get_owned_project(project_id, current_user, db)
+
     result = await db.execute(
         select(Image)
         .where(Image.project_id == project_id, Image.status == "annotated")
@@ -131,7 +149,6 @@ async def get_clahe_preview(project_id: str, db: AsyncSession = Depends(get_db))
     )
     img_row = result.scalar_one_or_none()
     if img_row is None:
-        # Fall back to any image in the project
         result = await db.execute(
             select(Image).where(Image.project_id == project_id).limit(1)
         )
@@ -140,7 +157,6 @@ async def get_clahe_preview(project_id: str, db: AsyncSession = Depends(get_db))
     if img_row is None:
         raise HTTPException(status_code=404, detail="No images found in project")
 
-    # Resolve file path
     rel = img_row.filepath.lstrip("/")
     candidates = [
         settings.upload_dir.resolve().parent / rel,
@@ -150,12 +166,10 @@ async def get_clahe_preview(project_id: str, db: AsyncSession = Depends(get_db))
     if file_path is None:
         raise HTTPException(status_code=404, detail="Image file not found on disk")
 
-    # Read with OpenCV
     img_bgr = cv2.imread(str(file_path))
     if img_bgr is None:
         raise HTTPException(status_code=422, detail="Could not decode image")
 
-    # Resize to a reasonable preview size (max 480px wide)
     h, w = img_bgr.shape[:2]
     max_w = 480
     if w > max_w:
@@ -168,16 +182,12 @@ async def get_clahe_preview(project_id: str, db: AsyncSession = Depends(get_db))
             raise HTTPException(status_code=500, detail="Image encoding failed")
         return "data:image/jpeg;base64," + base64.b64encode(buf.tobytes()).decode()
 
-    # Apply the same 3-stage pipeline used during training
-    # Stage 1: moderate CLAHE (clipLimit=3.0, tiles=8x8)
     lab = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2LAB)
     l_ch, a_ch, b_ch = cv2.split(lab)
     clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
     enhanced = cv2.cvtColor(cv2.merge([clahe.apply(l_ch), a_ch, b_ch]), cv2.COLOR_LAB2BGR)
-    # Stage 2: gamma γ=1.3 — darkens shadows so rubber stays dark, clips pop out
     lut = np.array([(i / 255.0) ** 1.3 * 255 for i in range(256)], dtype=np.uint8)
     enhanced = cv2.LUT(enhanced, lut)
-    # Stage 3: unsharp mask — sharpens clip-to-rubber boundary
     blurred = cv2.GaussianBlur(enhanced, (0, 0), sigmaX=2.0)
     enhanced = cv2.addWeighted(enhanced, 1.4, blurred, -0.4, 0)
 
@@ -191,13 +201,19 @@ async def get_clahe_preview(project_id: str, db: AsyncSession = Depends(get_db))
 # ── Auto-annotate ────────────────────────────────────────────────
 
 class AutoAnnotateRequest(BaseModel):
-    image_ids: Optional[List[str]] = None  # None = all pending
-    conf: float = 0.25                     # detection confidence threshold (was 0.1 — too low)
-    use_tta: bool = False                  # Test-Time Augmentation for more robust detections
+    image_ids: Optional[List[str]] = None
+    conf: float = 0.25
+    use_tta: bool = False
 
 
 @router.post("/auto-annotate/{project_id}")
-async def start_auto_annotation(project_id: str, body: AutoAnnotateRequest = None):
+async def start_auto_annotation(
+    project_id: str,
+    body: AutoAnnotateRequest = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await get_owned_project(project_id, current_user, db)
     ids     = body.image_ids if body else None
     conf    = body.conf if body else 0.25
     use_tta = body.use_tta if body else False
@@ -213,22 +229,35 @@ class AIPromptRequest(BaseModel):
     prompt: str
     clear_existing: bool = False
 
+
 class AIBulkPromptRequest(BaseModel):
     project_id: str
     prompt: str
     image_ids: Optional[List[str]] = None
 
+
 @router.post("/ai-prompt")
-async def trigger_ai_prompt(body: AIPromptRequest):
+async def trigger_ai_prompt(
+    body: AIPromptRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Detect objects in a single image using a text prompt."""
+    await get_owned_project(body.project_id, current_user, db)
     task = detect_with_prompt.delay(
         body.project_id, body.image_id, body.prompt, body.clear_existing
     )
     return {"task_id": task.id}
 
+
 @router.post("/ai-bulk-prompt")
-async def trigger_ai_bulk_prompt(body: AIBulkPromptRequest):
+async def trigger_ai_bulk_prompt(
+    body: AIBulkPromptRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Detect objects in multiple images using a text prompt."""
+    await get_owned_project(body.project_id, current_user, db)
     task = bulk_detect_with_prompt.delay(
         body.project_id, body.prompt, body.image_ids
     )
@@ -236,18 +265,19 @@ async def trigger_ai_bulk_prompt(body: AIBulkPromptRequest):
 
 
 @router.get("/pending-images/{project_id}")
-async def get_pending_images(project_id: str, db: AsyncSession = Depends(get_db)):
-    """Return pending images AND annotated-but-empty images (status=annotated, 0 bbox records)."""
-    from sqlalchemy import func, outerjoin
-    from sqlalchemy.orm import aliased
+async def get_pending_images(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return pending images AND annotated-but-empty images."""
+    await get_owned_project(project_id, current_user, db)
 
-    # Images that are pending
     pending_q = await db.execute(
         select(Image).where(Image.project_id == project_id, Image.status == "pending")
     )
     pending_images = pending_q.scalars().all()
 
-    # Images marked annotated but with ZERO annotation records (stale from previous runs)
     annotated_q = await db.execute(
         select(Image).where(Image.project_id == project_id, Image.status == "annotated")
     )
@@ -260,7 +290,6 @@ async def get_pending_images(project_id: str, db: AsyncSession = Depends(get_db)
         )
         count = count_q.scalar()
         if count == 0:
-            # Reset to pending so they can be re-annotated
             img.status = "pending"
             empty_annotated.append(img)
 
@@ -281,15 +310,18 @@ async def get_pending_images(project_id: str, db: AsyncSession = Depends(get_db)
 
 
 @router.get("/model-status/{project_id}")
-async def get_model_status(project_id: str):
+async def get_model_status(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Check whether trained seed/main models exist for this project."""
+    await get_owned_project(project_id, current_user, db)
     seed_path = settings.model_dir / project_id / "seed_best.pt"
     main_path = settings.model_dir / project_id / "main_best.pt"
     return {
-        # Legacy field kept for backward-compat with AutoAnnotatePanel
         "has_seed_model":  seed_path.exists(),
         "model_path":      str(seed_path) if seed_path.exists() else None,
-        # New fields
         "seed_model_path": str(seed_path) if seed_path.exists() else None,
         "has_main_model":  main_path.exists(),
         "main_model_path": str(main_path) if main_path.exists() else None,
@@ -297,12 +329,14 @@ async def get_model_status(project_id: str):
 
 
 @router.get("/model-details/{project_id}")
-async def get_model_details(project_id: str, db: AsyncSession = Depends(get_db)):
-    """
-    Return rich details about trained models for a project:
-    - File existence + size
-    - Last successful training job (metrics, model name, dates)
-    """
+async def get_model_details(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return rich details about trained models for a project."""
+    await get_owned_project(project_id, current_user, db)
+
     seed_path = settings.model_dir / project_id / "seed_best.pt"
     main_path = settings.model_dir / project_id / "main_best.pt"
 
@@ -335,23 +369,22 @@ async def get_model_details(project_id: str, db: AsyncSession = Depends(get_db))
             "finished_at": job.finished_at.isoformat() if job.finished_at else None,
         }
 
-    seed_info = file_info(seed_path)
-    main_info = file_info(main_path)
-    seed_job  = await latest_job("seed_training")
-    main_job  = await latest_job("main_training")
-
     return {
-        "seed": {**seed_info, "last_job": seed_job},
-        "main": {**main_info, "last_job": main_job},
+        "seed": {**file_info(seed_path), "last_job": await latest_job("seed_training")},
+        "main": {**file_info(main_path), "last_job": await latest_job("main_training")},
     }
 
 
 @router.get("/download-model/{project_id}/{model_type}")
-async def download_model(project_id: str, model_type: str):
-    """
-    Stream the trained model weights file as a download.
-    model_type: 'seed' | 'main'
-    """
+async def download_model(
+    project_id: str,
+    model_type: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Stream the trained model weights file as a download."""
+    await get_owned_project(project_id, current_user, db)
+
     if model_type not in ("seed", "main"):
         raise HTTPException(status_code=400, detail="model_type must be 'seed' or 'main'")
 
@@ -370,28 +403,34 @@ async def download_model(project_id: str, model_type: str):
 # ── Active Learning ──────────────────────────────────────────────
 
 class ScoreImagesRequest(BaseModel):
-    model_type: str = "seed"                  # "seed" or "main"
-    strategy: str = "combined"                # "confidence" | "entropy" | "tta" | "combined"
-    top_k: int = 0                            # 0 = all images
+    model_type: str = "seed"
+    strategy: str = "combined"
+    top_k: int = 0
     use_tta: bool = False
 
 
 class CurriculumAnnotateRequest(BaseModel):
-    high_conf: float = 0.6                    # auto-accept above this
-    low_conf: float = 0.25                    # skip below this
-    review_band_top: float = 0.6              # upper bound of review band
-    review_band_bottom: float = 0.35          # lower bound of review band
+    high_conf: float = 0.6
+    low_conf: float = 0.25
+    review_band_top: float = 0.6
+    review_band_bottom: float = 0.35
     use_tta: bool = True
 
 
 class SuggestReviewRequest(BaseModel):
-    budget: int = 10                          # how many images to suggest
+    budget: int = 10
     strategy: str = "combined"
 
 
 @router.post("/active-learning/score/{project_id}")
-async def start_scoring(project_id: str, body: ScoreImagesRequest = None):
+async def start_scoring(
+    project_id: str,
+    body: ScoreImagesRequest = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Score all pending images by uncertainty — returns ranked list."""
+    await get_owned_project(project_id, current_user, db)
     req = body or ScoreImagesRequest()
     task = score_unlabeled_images.delay(
         project_id, req.model_type, req.strategy, req.top_k, req.use_tta,
@@ -400,13 +439,14 @@ async def start_scoring(project_id: str, body: ScoreImagesRequest = None):
 
 
 @router.post("/active-learning/curriculum-annotate/{project_id}")
-async def start_curriculum_annotate(project_id: str, body: CurriculumAnnotateRequest = None):
-    """
-    Smart auto-annotation with confidence tiers:
-    - High confidence → auto-accepted
-    - Medium confidence → saved for human review
-    - Low confidence → skipped (suggest manual annotation)
-    """
+async def start_curriculum_annotate(
+    project_id: str,
+    body: CurriculumAnnotateRequest = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Smart auto-annotation with confidence tiers."""
+    await get_owned_project(project_id, current_user, db)
     req = body or CurriculumAnnotateRequest()
     task = curriculum_auto_annotate.delay(
         project_id, req.high_conf, req.low_conf,
@@ -416,12 +456,14 @@ async def start_curriculum_annotate(project_id: str, body: CurriculumAnnotateReq
 
 
 @router.post("/active-learning/suggest/{project_id}")
-async def start_suggest_review(project_id: str, body: SuggestReviewRequest = None):
-    """
-    Get the top-N most uncertain images that need human annotation.
-    This is the core active learning query — tells you exactly which
-    images to label for maximum model improvement.
-    """
+async def start_suggest_review(
+    project_id: str,
+    body: SuggestReviewRequest = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get the top-N most uncertain images that need human annotation."""
+    await get_owned_project(project_id, current_user, db)
     req = body or SuggestReviewRequest()
     task = suggest_for_review.delay(project_id, req.budget, req.strategy)
     return {"task_id": task.id, "status": "queued"}
@@ -430,7 +472,13 @@ async def start_suggest_review(project_id: str, body: SuggestReviewRequest = Non
 # ── Dataset stats ────────────────────────────────────────────────
 
 @router.get("/training-stats/{project_id}")
-async def get_training_stats(project_id: str, db: AsyncSession = Depends(get_db)):
+async def get_training_stats(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await get_owned_project(project_id, current_user, db)
+
     all_imgs = await db.execute(select(Image).where(Image.project_id == project_id))
     images = all_imgs.scalars().all()
 
@@ -463,20 +511,28 @@ async def get_training_stats(project_id: str, db: AsyncSession = Depends(get_db)
 # ── Cancel task ───────────────────────────────────────────────────
 
 @router.post("/cancel/{task_id}")
-async def cancel_task(task_id: str, db: AsyncSession = Depends(get_db)):
-    """
-    Revoke a Celery task and mark the DB job record as stopped.
+async def cancel_task(
+    task_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Revoke a Celery task and mark the DB job record as stopped."""
+    # Verify the job belongs to the current user's project before cancelling
+    result = await db.execute(select(TrainingJob).where(TrainingJob.id == task_id))
+    job = result.scalar_one_or_none()
+    if job:
+        proj_result = await db.execute(
+            select(Project).where(
+                Project.id == job.project_id,
+                Project.user_id == current_user.id,
+            )
+        )
+        if not proj_result.scalar_one_or_none():
+            raise HTTPException(status_code=403, detail="Access denied")
 
-    Uses terminate=True + SIGTERM so a running worker process actually
-    stops mid-work rather than just being flagged for skipping on next
-    pickup.
-    """
     celery_app.control.revoke(task_id, terminate=True, signal="SIGTERM")
 
-    # Best-effort DB update — job may not exist yet if cancel races the create
     try:
-        result = await db.execute(select(TrainingJob).where(TrainingJob.id == task_id))
-        job = result.scalar_one_or_none()
         if job:
             job.status = "failure"
             job.result_meta = _sanitize_meta({
@@ -494,7 +550,12 @@ async def cancel_task(task_id: str, db: AsyncSession = Depends(get_db)):
 # ── Task status ───────────────────────────────────────────────────
 
 @router.get("/task-status/{task_id}")
-async def get_task_status(task_id: str):
+async def get_task_status(
+    task_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return Celery task progress. Auth required; task_id is opaque so no ownership re-check needed."""
     result = AsyncResult(task_id, app=celery_app)
     response = {
         "task_id": task_id,
@@ -518,13 +579,6 @@ async def get_task_status(task_id: str):
 # ── Persistent job records ────────────────────────────────────────
 
 def _sanitize_floats(obj):
-    """
-    Recursively replace NaN / Infinity float values with None so that
-    FastAPI / Starlette can JSON-serialize the response without raising
-    'ValueError: Out of range float values are not JSON compliant'.
-    YOLO training occasionally emits NaN losses (e.g. empty batches) and
-    Celery stores them verbatim in its result backend.
-    """
     import math
     if isinstance(obj, float):
         return None if (math.isnan(obj) or math.isinf(obj)) else obj
@@ -536,14 +590,6 @@ def _sanitize_floats(obj):
 
 
 def _sanitize_meta(obj):
-    """
-    Recursively strip characters that cannot be encoded in WIN1252.
-
-    PostgreSQL on Windows defaults to WIN1252 encoding, which cannot store
-    emoji or other characters outside the Latin-1 Supplement range (e.g.
-    ⚙\ufe0f, …, ✅).  This prevents the UntranslatableCharacterError that
-    makes the UPDATE fail and the job result disappear from the UI.
-    """
     if isinstance(obj, str):
         return obj.encode("cp1252", errors="ignore").decode("cp1252")
     if isinstance(obj, dict):
@@ -568,8 +614,13 @@ class JobUpdateRequest(BaseModel):
 
 
 @router.post("/jobs")
-async def create_job(body: JobCreateRequest, db: AsyncSession = Depends(get_db)):
+async def create_job(
+    body: JobCreateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Persist a newly-submitted Celery job so it survives page reloads."""
+    await get_owned_project(body.project_id, current_user, db)
     job = TrainingJob(
         id=body.task_id,
         project_id=body.project_id,
@@ -588,9 +639,12 @@ async def create_job(body: JobCreateRequest, db: AsyncSession = Depends(get_db))
 async def list_jobs(
     project_id: str,
     job_type: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Return all persisted jobs for a project, oldest first."""
+    await get_owned_project(project_id, current_user, db)
+
     q = select(TrainingJob).where(TrainingJob.project_id == project_id)
     if job_type:
         q = q.where(TrainingJob.job_type == job_type)
@@ -618,24 +672,30 @@ async def list_jobs(
 async def update_job(
     task_id: str,
     body: JobUpdateRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Update status and/or result_meta for a job."""
-    result = await db.execute(
-        select(TrainingJob).where(TrainingJob.id == task_id)
-    )
+    result = await db.execute(select(TrainingJob).where(TrainingJob.id == task_id))
     job = result.scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail=f"Job {task_id} not found")
+
+    # Verify job belongs to the current user's project
+    proj_result = await db.execute(
+        select(Project).where(
+            Project.id == job.project_id,
+            Project.user_id == current_user.id,
+        )
+    )
+    if not proj_result.scalar_one_or_none():
+        raise HTTPException(status_code=403, detail="Access denied")
 
     if body.status is not None:
         job.status = body.status
     if body.result_meta is not None:
         job.result_meta = _sanitize_meta(body.result_meta)
     if body.finished_at is not None:
-        # Strip timezone info — the column is TIMESTAMP WITHOUT TIME ZONE.
-        # The frontend sends ISO strings with a "Z" suffix (UTC-aware), which
-        # asyncpg rejects when the column is tz-naive.
         job.finished_at = datetime.fromisoformat(body.finished_at).replace(tzinfo=None)
 
     await db.commit()
