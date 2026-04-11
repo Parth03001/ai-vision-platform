@@ -12,7 +12,6 @@ import VideoPanel from './VideoPanel';
 import ActiveLearningPanel from './ActiveLearningPanel';
 import './AnnotationWorkspace.css';
 import { Sparkles, AlertTriangle, X, Upload, Image as ImageIcon, Check, ArrowLeft, ArrowRight, Brain, Rocket, Eye, Target, Tag, Package, Film } from 'lucide-react';
-import logoImg from '../logo.png';
 
 import { API_URL } from '../config';
 
@@ -546,10 +545,7 @@ Do you want to proceed?`;
             {/* ── Sidebar ── */}
             <aside className="workspace-sidebar">
                 <div className="sidebar-section sidebar-actions">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <p className="sidebar-label" style={{ margin: 0 }}>Pipeline</p>
-                        <img src={logoImg} alt="Logo" style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
-                    </div>
+                    <p className="sidebar-label">Pipeline</p>
                     <button className="btn-action" onClick={() => setShowTrainingPanel(true)}>
                         <Rocket size={14} /> Train Seed Model
                     </button>
