@@ -40,6 +40,17 @@ async def upload_images(
 
         with PILImage.open(file_path) as img:
             width, height = img.size
+            # Correct dimensions for EXIF orientation so stored values match
+            # what the browser actually displays (phones often shoot rotated).
+            # Orientations 5-8 require a 90°/270° rotation, swapping W and H.
+            try:
+                exif_data = img._getexif()
+                if exif_data:
+                    orientation = exif_data.get(274, 1)  # tag 274 = Orientation
+                    if orientation in (5, 6, 7, 8):
+                        width, height = height, width
+            except Exception:
+                pass
 
         db_image = Image(
             project_id=project_id,

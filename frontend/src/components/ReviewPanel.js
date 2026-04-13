@@ -8,8 +8,13 @@ import logoImg from '../logo.png';
 
 import { API_URL, BASE_URL } from '../config';
 
-const CanvasImage = ({ src }) => {
+const CanvasImage = ({ src, onLoad }) => {
     const [img] = useImage(src, 'anonymous');
+    useEffect(() => {
+        if (img && onLoad) {
+            onLoad(img.naturalWidth || img.width, img.naturalHeight || img.height);
+        }
+    }, [img, onLoad]);
     return <KonvaImg image={img} />;
 };
 
@@ -70,6 +75,8 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
     const [newAnnotation, setNewAnnotation] = useState(null);
     const [pendingAnnotation, setPendingAnnotation] = useState(null);
     const [statusMsg, setStatusMsg] = useState(null);
+    // Actual displayed dimensions after EXIF orientation is applied by the browser
+    const [loadedImageSize, setLoadedImageSize] = useState(null);
     const stageWrapRef = useRef(null);
 
     const currentImage = reviewImages[currentIdx] || null;
@@ -101,6 +108,15 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
     useEffect(() => {
         measureCanvas();
     }, [currentImage?.id, measureCanvas]);
+
+    const handleImageLoad = useCallback((w, h) => {
+        setLoadedImageSize({ width: w, height: h });
+    }, []);
+
+    // Reset loaded size when navigating to a different image
+    useEffect(() => {
+        setLoadedImageSize(null);
+    }, [currentImage?.id]);
 
     // Load annotations when current image changes
     useEffect(() => {
@@ -228,10 +244,10 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
         if (!pendingAnnotation || !currentImage) return;
         const { x, y, width: w, height: h } = pendingAnnotation;
         const bbox = [
-            (x + w / 2) / currentImage.width,
-            (y + h / 2) / currentImage.height,
-            w / currentImage.width,
-            h / currentImage.height,
+            (x + w / 2) / imgW,
+            (y + h / 2) / imgH,
+            w / imgW,
+            h / imgH,
         ];
         try {
             const res = await axios.post(`${API_URL}/annotations`, {
@@ -248,11 +264,15 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
         setPendingAnnotation(null);
     };
 
+    // Use browser-reported natural dimensions (EXIF-corrected) once loaded
+    const imgW = loadedImageSize?.width  || currentImage?.width  || 1;
+    const imgH = loadedImageSize?.height || currentImage?.height || 1;
+
     const scale = currentImage
-        ? Math.min(1, canvasSize.w / currentImage.width, canvasSize.h / currentImage.height)
+        ? Math.min(1, canvasSize.w / imgW, canvasSize.h / imgH)
         : 1;
-    const stageW = currentImage ? Math.round(currentImage.width * scale) : canvasSize.w;
-    const stageH = currentImage ? Math.round(currentImage.height * scale) : canvasSize.h;
+    const stageW = currentImage ? Math.round(imgW * scale) : canvasSize.w;
+    const stageH = currentImage ? Math.round(imgH * scale) : canvasSize.h;
 
     const autoCount = annotations.filter(a => a.source !== 'manual').length;
     const drawnBox = pendingAnnotation || newAnnotation;
@@ -353,7 +373,7 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
                                     <div className="rp-canvas-toolbar">
                                         <span className="rp-canvas-filename">{currentImage.filename}</span>
                                         <span className="rp-canvas-dims">
-                                            {currentImage.width} × {currentImage.height}px
+                                            {imgW} × {imgH}px
                                         </span>
                                         <span className="rp-canvas-hint">
                                             Draw a box to add new annotation
@@ -380,13 +400,14 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
                                             <Layer>
                                                 <CanvasImage
                                                     src={`${BASE_URL}${currentImage.filepath}`}
+                                                    onLoad={handleImageLoad}
                                                 />
 
                                                 {annotations.map(ann => {
-                                                    const bx = (ann.bbox[0] - ann.bbox[2] / 2) * currentImage.width;
-                                                    const by = (ann.bbox[1] - ann.bbox[3] / 2) * currentImage.height;
-                                                    const bw = ann.bbox[2] * currentImage.width;
-                                                    const bh = ann.bbox[3] * currentImage.height;
+                                                    const bx = (ann.bbox[0] - ann.bbox[2] / 2) * imgW;
+                                                    const by = (ann.bbox[1] - ann.bbox[3] / 2) * imgH;
+                                                    const bw = ann.bbox[2] * imgW;
+                                                    const bh = ann.bbox[3] * imgH;
                                                     const isAuto = ann.source !== 'manual';
                                                     const color = isAuto ? '#a78bfa' : '#22c55e';
                                                     const fill  = isAuto

@@ -15,8 +15,15 @@ import { Sparkles, AlertTriangle, X, Upload, Image as ImageIcon, Check, ArrowLef
 
 import { API_URL } from '../config';
 
-const KonvaImage = ({ src }) => {
+// Reports naturalWidth/naturalHeight once loaded so the parent can use the
+// browser-corrected dimensions (EXIF orientation, etc.) for scale calculation.
+const KonvaImage = ({ src, onLoad }) => {
     const [image] = useImage(src, 'anonymous');
+    useEffect(() => {
+        if (image && onLoad) {
+            onLoad(image.naturalWidth || image.width, image.naturalHeight || image.height);
+        }
+    }, [image, onLoad]);
     return <Image image={image} />;
 };
 
@@ -119,6 +126,9 @@ const AnnotationWorkspace = ({ project, onProjectUpdated }) => {
     const [images, setImages] = useState([]);
     const [annotations, setAnnotations] = useState([]);
     const [currentImage, setCurrentImage] = useState(null);
+    // Actual displayed dimensions from the loaded image (may differ from backend
+    // stored values when EXIF orientation rotates the image 90°/270°).
+    const [loadedImageSize, setLoadedImageSize] = useState(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [newAnnotation, setNewAnnotation] = useState(null);
     const [pendingAnnotation, setPendingAnnotation] = useState(null); // bbox waiting for class
@@ -346,8 +356,13 @@ Do you want to proceed?`;
         setShowReviewPanel(true);
     };
 
+    const handleImageLoad = useCallback((w, h) => {
+        setLoadedImageSize({ width: w, height: h });
+    }, []);
+
     const handleImageClick = (image) => {
         setCurrentImage(image);
+        setLoadedImageSize(null); // reset until new image loads
         setPendingAnnotation(null);
         setNewAnnotation(null);
         axios.get(`${API_URL}/annotations/image/${image.id}`)
@@ -478,10 +493,10 @@ Do you want to proceed?`;
         } else {
             // New drawn annotation — POST it
             const bbox = [
-                (ann.x + ann.width / 2) / currentImage.width,
-                (ann.y + ann.height / 2) / currentImage.height,
-                ann.width / currentImage.width,
-                ann.height / currentImage.height,
+                (ann.x + ann.width / 2) / imgW,
+                (ann.y + ann.height / 2) / imgH,
+                ann.width / imgW,
+                ann.height / imgH,
             ];
             axios.post(`${API_URL}/annotations`, {
                 image_id: currentImage.id,
@@ -546,12 +561,17 @@ Do you want to proceed?`;
         measureCanvas();
     }, [currentImage?.id, measureCanvas]);
 
+    // Use the browser-reported natural dimensions once the image loads (EXIF-corrected).
+    // Fall back to the backend-stored values while the image is still loading.
+    const imgW = loadedImageSize?.width  || currentImage?.width  || 1;
+    const imgH = loadedImageSize?.height || currentImage?.height || 1;
+
     // Fit image inside available canvas area, preserving aspect ratio
     const scale = currentImage
-        ? Math.min(1, canvasSize.w / currentImage.width, canvasSize.h / currentImage.height)
+        ? Math.min(1, canvasSize.w / imgW, canvasSize.h / imgH)
         : 1;
-    const stageW = currentImage ? Math.round(currentImage.width * scale) : canvasSize.w;
-    const stageH = currentImage ? Math.round(currentImage.height * scale) : canvasSize.h;
+    const stageW = currentImage ? Math.round(imgW * scale) : canvasSize.w;
+    const stageH = currentImage ? Math.round(imgH * scale) : canvasSize.h;
 
     // The box to draw while mouse is held or while picker is open
     const drawnBox = pendingAnnotation || newAnnotation;
@@ -692,7 +712,7 @@ Do you want to proceed?`;
                     <div className="canvas-wrapper">
                         <div className="canvas-toolbar">
                             <span className="canvas-filename">{currentImage.filename}</span>
-                            <span className="canvas-dims">{currentImage.width} × {currentImage.height}px</span>
+                            <span className="canvas-dims">{imgW} × {imgH}px</span>
                             <span className="canvas-hint">Draw a box to annotate</span>
                             <span className="canvas-ann-count">
                                 {annotations.length} annotation{annotations.length !== 1 ? 's' : ''}
@@ -761,12 +781,13 @@ Do you want to proceed?`;
                                 <Layer>
                                     <KonvaImage
                                         src={`${API_URL.replace("/api/v1", "")}${currentImage.filepath}`}
+                                        onLoad={handleImageLoad}
                                     />
                                     {annotations.map(ann => {
-                                        const bx = (ann.bbox[0] - ann.bbox[2] / 2) * currentImage.width;
-                                        const by = (ann.bbox[1] - ann.bbox[3] / 2) * currentImage.height;
-                                        const bw = ann.bbox[2] * currentImage.width;
-                                        const bh = ann.bbox[3] * currentImage.height;
+                                        const bx = (ann.bbox[0] - ann.bbox[2] / 2) * imgW;
+                                        const by = (ann.bbox[1] - ann.bbox[3] / 2) * imgH;
+                                        const bw = ann.bbox[2] * imgW;
+                                        const bh = ann.bbox[3] * imgH;
                                         const unclassified = ann.source === 'ai_prompt' && !ann.class_name;
                                         // manual = rose red, auto = violet, unclassified = amber
                                         const color = unclassified ? '#f59e0b' : ann.source === 'auto' ? '#a78bfa' : '#f43f5e';
