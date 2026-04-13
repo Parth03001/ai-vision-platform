@@ -70,7 +70,7 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
     const [newAnnotation, setNewAnnotation] = useState(null);
     const [pendingAnnotation, setPendingAnnotation] = useState(null);
     const [statusMsg, setStatusMsg] = useState(null);
-    const canvasContainerRef = useRef(null);
+    const stageWrapRef = useRef(null);
 
     const currentImage = reviewImages[currentIdx] || null;
 
@@ -80,18 +80,27 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
         setTimeout(() => setStatusMsg(null), 1800);
     }, []);
 
-    // Measure canvas container size
-    useEffect(() => {
-        const measure = () => {
-            if (canvasContainerRef.current) {
-                const r = canvasContainerRef.current.getBoundingClientRect();
-                setCanvasSize({ w: Math.max(200, r.width - 16), h: Math.max(150, r.height - 16) });
+    // Measure the rp-stage-wrap container directly to avoid image cropping
+    // rp-stage-wrap has padding: 12px on all sides, so subtract 24px each axis
+    const measureCanvas = useCallback(() => {
+        if (stageWrapRef.current) {
+            const r = stageWrapRef.current.getBoundingClientRect();
+            if (r.width > 0 && r.height > 0) {
+                setCanvasSize({ w: Math.max(200, r.width - 24), h: Math.max(150, r.height - 24) });
             }
-        };
-        measure();
-        window.addEventListener('resize', measure);
-        return () => window.removeEventListener('resize', measure);
+        }
     }, []);
+
+    useEffect(() => {
+        measureCanvas();
+        window.addEventListener('resize', measureCanvas);
+        return () => window.removeEventListener('resize', measureCanvas);
+    }, [measureCanvas]);
+
+    // Re-measure when image changes so stageWrapRef is populated
+    useEffect(() => {
+        measureCanvas();
+    }, [currentImage?.id, measureCanvas]);
 
     // Load annotations when current image changes
     useEffect(() => {
@@ -334,7 +343,7 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
                     <div className="rp-main">
 
                         {/* Canvas */}
-                        <div className="rp-canvas-area" ref={canvasContainerRef}>
+                        <div className="rp-canvas-area">
                             {statusMsg && <div className="rp-toast">{statusMsg}</div>}
 
                             {loading && <div className="rp-loading-msg">Loading…</div>}
@@ -357,7 +366,7 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
                                         </span>
                                     </div>
 
-                                    <div className="rp-stage-wrap">
+                                    <div className="rp-stage-wrap" ref={stageWrapRef}>
                                         <Stage
                                             width={stageW}
                                             height={stageH}

@@ -148,6 +148,7 @@ const AnnotationWorkspace = ({ project, onProjectUpdated }) => {
     const [classifyingAnnId, setClassifyingAnnId] = useState(null); // id of AI ann being classified
     const aiQueueRef = useRef([]); // queue of {id, bbox} waiting for ClassPicker
     const canvasAreaRef = useRef(null);
+    const canvasCenterRef = useRef(null);
 
     const pollTask = useCallback((taskId, onComplete, onProgress) => {
         const interval = setInterval(async () => {
@@ -516,19 +517,34 @@ Do you want to proceed?`;
 
     const startAutoAnnotation = () => setShowAutoAnnotatePanel(true);
 
-    // Measure canvas area on mount and resize
-    useEffect(() => {
-        const measure = () => {
-            if (canvasAreaRef.current) {
-                const w = canvasAreaRef.current.clientWidth - 48;
-                const h = canvasAreaRef.current.clientHeight - 96;
-                setCanvasSize({ w: Math.max(w, 300), h: Math.max(h, 300) });
+    // Measure the canvas-center container directly to avoid cropping from imprecise offsets
+    const measureCanvas = useCallback(() => {
+        if (canvasCenterRef.current) {
+            const r = canvasCenterRef.current.getBoundingClientRect();
+            if (r.width > 0 && r.height > 0) {
+                setCanvasSize({ w: Math.max(r.width, 300), h: Math.max(r.height, 300) });
+                return;
             }
-        };
-        measure();
-        window.addEventListener('resize', measure);
-        return () => window.removeEventListener('resize', measure);
+        }
+        // Fallback: measure the outer area with corrected offsets
+        // padding(40) + toolbar(40) + gap(10) + ai-bar(52) + gap(10) = 152 height overhead; 40 width overhead
+        if (canvasAreaRef.current) {
+            const w = canvasAreaRef.current.clientWidth - 40;
+            const h = canvasAreaRef.current.clientHeight - 152;
+            setCanvasSize({ w: Math.max(w, 300), h: Math.max(h, 300) });
+        }
     }, []);
+
+    useEffect(() => {
+        measureCanvas();
+        window.addEventListener('resize', measureCanvas);
+        return () => window.removeEventListener('resize', measureCanvas);
+    }, [measureCanvas]);
+
+    // Re-measure after an image is selected so canvasCenterRef is populated
+    useEffect(() => {
+        measureCanvas();
+    }, [currentImage?.id, measureCanvas]);
 
     // Fit image inside available canvas area, preserving aspect ratio
     const scale = currentImage
@@ -731,7 +747,7 @@ Do you want to proceed?`;
                             </div>
                         </div>
 
-                        <div className="canvas-center">
+                        <div className="canvas-center" ref={canvasCenterRef}>
                             <Stage
                                 className="canvas-stage"
                                 width={stageW}
