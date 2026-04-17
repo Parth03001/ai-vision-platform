@@ -458,7 +458,7 @@ def train_seed_model(
     # all images are loaded into RAM once before training begins, eliminating
     # per-epoch disk I/O that would otherwise stall the GPU between batches.
     # batch=0.85 targets 85% VRAM (vs the 60% default of batch=-1).
-    _batch = 0.85 if batch == -1 else batch
+    _batch = 0.90 if batch == -1 else batch
 
     results = model.train(
         data=str(dataset_path / "data.yaml"),
@@ -603,7 +603,7 @@ def train_main_model(
               "split": {"train": n_train, "val": n_val, "test": n_test}},
     )
 
-    _batch = 0.85 if batch == -1 else batch
+    _batch = 0.90 if batch == -1 else batch
 
     results = model.train(
         data=str(dataset_path / "data.yaml"),
