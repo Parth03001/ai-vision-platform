@@ -454,11 +454,20 @@ def train_seed_model(
               "split": {"train": n_train, "val": n_val, "test": n_test}},
     )
 
+    # workers=0 is required for Celery daemonic processes; use cache=True so
+    # all images are loaded into RAM once before training begins, eliminating
+    # per-epoch disk I/O that would otherwise stall the GPU between batches.
+    # batch=0.85 targets 85% VRAM (vs the 60% default of batch=-1).
+    _batch = 0.85 if batch == -1 else batch
+
     results = model.train(
         data=str(dataset_path / "data.yaml"),
         epochs=total_epochs,
         imgsz=imgsz,
-        batch=batch,         # -1 = YOLO auto-batch (targets 60% VRAM utilisation)
+        batch=_batch,
+        cache=True,          # preload dataset into RAM — eliminates disk I/O stall with workers=0
+        amp=True,            # FP16 mixed precision — halves VRAM per tensor, faster tensor cores
+        device=0,            # explicit CUDA device
         lr0=settings.seed_learning_rate,
         lrf=0.01,            # final lr = lr0 * lrf
         cos_lr=True,         # cosine LR schedule — smoother convergence on small datasets
@@ -594,11 +603,16 @@ def train_main_model(
               "split": {"train": n_train, "val": n_val, "test": n_test}},
     )
 
+    _batch = 0.85 if batch == -1 else batch
+
     results = model.train(
         data=str(dataset_path / "data.yaml"),
         epochs=total_epochs,
         imgsz=imgsz,
-        batch=batch,         # -1 = YOLO auto-batch (targets 60% VRAM utilisation)
+        batch=_batch,
+        cache=True,          # preload dataset into RAM — eliminates disk I/O stall with workers=0
+        amp=True,            # FP16 mixed precision — halves VRAM per tensor, faster tensor cores
+        device=0,            # explicit CUDA device
         lr0=lr0,
         lrf=0.01,            # final lr = lr0 * lrf
         cos_lr=True,         # cosine LR schedule
