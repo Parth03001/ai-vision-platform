@@ -2,15 +2,20 @@
 setlocal EnableDelayedExpansion
 
 echo ============================================================
-echo  AI Vision Platform — Windows EXE Build Script
+echo  AI Vision Platform - Windows EXE Build Script
 echo ============================================================
 
 :: Resolve repo root (two levels up from deploy\exe)
-set "REPO_ROOT=%~dp0..\.."
 set "DEPLOY_DIR=%~dp0"
+pushd "%~dp0..\.."
+set "REPO_ROOT=%CD%"
+popd
+
+echo [DEBUG] DEPLOY_DIR = %DEPLOY_DIR%
+echo [DEBUG] REPO_ROOT  = %REPO_ROOT%
 
 :: --------------------------------------------------------------------------
-:: Step 1 — Check Python
+:: Step 1 - Check Python
 :: --------------------------------------------------------------------------
 echo.
 echo [1/6] Checking Python...
@@ -22,7 +27,7 @@ if errorlevel 1 (
 python --version
 
 :: --------------------------------------------------------------------------
-:: Step 2 — Check Node
+:: Step 2 - Check Node
 :: --------------------------------------------------------------------------
 echo.
 echo [2/6] Checking Node.js / npm...
@@ -31,10 +36,11 @@ if errorlevel 1 (
     echo [ERROR] Node.js not found. Install from https://nodejs.org/
     exit /b 1
 )
-node --version && npm --version
+node --version
+npm --version
 
 :: --------------------------------------------------------------------------
-:: Step 3 — Build React frontend
+:: Step 3 - Build React frontend
 :: --------------------------------------------------------------------------
 echo.
 echo [3/6] Building React frontend...
@@ -53,7 +59,7 @@ if errorlevel 1 ( echo [ERROR] React build failed. & exit /b 1 )
 echo      Frontend built successfully.
 
 :: --------------------------------------------------------------------------
-:: Step 4 — Install Python build dependencies
+:: Step 4 - Install Python build dependencies
 :: --------------------------------------------------------------------------
 echo.
 echo [4/6] Installing Python build dependencies...
@@ -67,7 +73,7 @@ pip install pyinstaller ^
 if errorlevel 1 ( echo [ERROR] pip install failed. & exit /b 1 )
 
 :: --------------------------------------------------------------------------
-:: Step 5 — Check for portable binaries
+:: Step 5 - Check for portable binaries
 :: --------------------------------------------------------------------------
 echo.
 echo [5/6] Checking portable service binaries...
@@ -105,7 +111,7 @@ if not exist "%DEPLOY_DIR%resources\redis\redis-server.exe" (
 )
 
 :: --------------------------------------------------------------------------
-:: Step 6 — Run PyInstaller
+:: Step 6 - Run PyInstaller
 :: --------------------------------------------------------------------------
 echo.
 echo [6/6] Running PyInstaller...
