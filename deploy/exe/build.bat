@@ -77,38 +77,37 @@ if errorlevel 1 ( echo [ERROR] pip install failed. & exit /b 1 )
 :: --------------------------------------------------------------------------
 echo.
 echo [5/6] Checking portable service binaries...
-echo [DEBUG] Checking PG path: %DEPLOY_DIR%resources\postgres\bin\pg_ctl.exe
 
-if not exist "%DEPLOY_DIR%resources\postgres\bin\pg_ctl.exe" (
+:: Always cd back to DEPLOY_DIR before file checks so relative logic is correct
+cd /d "%DEPLOY_DIR%"
+
+if exist "resources\postgres\bin\pg_ctl.exe" (
+    echo      PostgreSQL binaries found.
+) else (
     echo.
-    echo [WARNING] Portable PostgreSQL NOT found at:
-    echo          %DEPLOY_DIR%resources\postgres\bin\pg_ctl.exe
+    echo [WARNING] Portable PostgreSQL NOT found.
+    echo          Expected: %DEPLOY_DIR%resources\postgres\bin\pg_ctl.exe
     echo.
-    echo   Download portable PostgreSQL 17 for Windows from:
+    echo   Download the binary ZIP from:
     echo   https://www.enterprisedb.com/download-postgresql-binaries
-    echo   Extract to: deploy\exe\resources\postgres\
-    echo   (the bin\ folder must be directly inside postgres\)
+    echo   Extract bin\ lib\ share\ into: deploy\exe\resources\postgres\
     echo.
     set /p CONTINUE="Continue build without PostgreSQL binaries? [y/N]: "
     if /i "!CONTINUE!" neq "y" exit /b 1
-) else (
-    echo      PostgreSQL binaries found.
 )
 
-if not exist "%DEPLOY_DIR%resources\redis\redis-server.exe" (
+if exist "resources\redis\redis-server.exe" (
+    echo      Redis binary found.
+) else (
     echo.
-    echo [WARNING] Portable Redis NOT found at:
-    echo          %DEPLOY_DIR%resources\redis\redis-server.exe
+    echo [WARNING] Portable Redis NOT found.
+    echo          Expected: %DEPLOY_DIR%resources\redis\redis-server.exe
     echo.
-    echo   Download Redis for Windows from:
-    echo   https://github.com/microsoftarchive/redis/releases
-    echo   OR use Memurai: https://www.memurai.com/get-memurai
-    echo   Extract to: deploy\exe\resources\redis\
+    echo   Download from: https://github.com/microsoftarchive/redis/releases
+    echo   Place redis-server.exe and redis-cli.exe in: deploy\exe\resources\redis\
     echo.
     set /p CONTINUE="Continue build without Redis binary? [y/N]: "
     if /i "!CONTINUE!" neq "y" exit /b 1
-) else (
-    echo      Redis binary found.
 )
 
 :: --------------------------------------------------------------------------
