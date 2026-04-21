@@ -12,6 +12,8 @@
 #   Build React frontend:             cd frontend && npm run build
 
 import sys
+import os
+import sysconfig
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
@@ -22,11 +24,23 @@ RESOURCES = Path(SPECPATH) / "resources"
 SCRIPTS   = REPO_ROOT / "scripts"
 
 # ---------------------------------------------------------------------------
-# Collect all data / binaries from heavy packages
+# Conda stdlib fix — PyInstaller sometimes fails to locate the Python stdlib
+# when building inside a Conda environment, causing 'No module named encodings'
+# at runtime. Explicitly bundle the entire stdlib into the _internal folder.
 # ---------------------------------------------------------------------------
-datas     = []
+_stdlib_dir = sysconfig.get_path("stdlib")
+_platstdlib_dir = sysconfig.get_path("platstdlib")
+datas = []
+if _stdlib_dir and os.path.isdir(_stdlib_dir):
+    datas += [(_stdlib_dir, "lib-stdlib")]
+if _platstdlib_dir and os.path.isdir(_platstdlib_dir) and _platstdlib_dir != _stdlib_dir:
+    datas += [(_platstdlib_dir, "lib-platstdlib")]
+# ---------------------------------------------------------------------------
 binaries  = []
 hiddenimports = []
+
+# Explicitly collect all encodings submodules (Conda stdlib fix)
+hiddenimports += collect_submodules("encodings")
 
 for pkg in [
     "uvicorn", "fastapi", "starlette",

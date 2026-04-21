@@ -116,6 +116,8 @@ if exist "resources\redis\redis-server.exe" (
 echo.
 echo [6/6] Running PyInstaller...
 cd /d "%DEPLOY_DIR%"
+if exist dist rmdir /s /q dist
+if exist build rmdir /s /q build
 python -m PyInstaller launcher.spec --clean --noconfirm
 if errorlevel 1 ( echo [ERROR] PyInstaller failed. & exit /b 1 )
 
