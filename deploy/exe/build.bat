@@ -118,25 +118,18 @@ echo [6/6] Running PyInstaller...
 cd /d "%DEPLOY_DIR%"
 
 :: Build on D: drive to avoid C: space issues and Defender file locks.
+:: Output goes straight to D:\AIVision-App — no xcopy needed.
 set "PYI_TEMP=D:\aivision-build-temp"
 set "PYI_WORK=%PYI_TEMP%\work"
-set "PYI_DIST=%PYI_TEMP%\dist"
-set "FINAL_DIST=%DEPLOY_DIR%dist"
+set "PYI_DIST=D:\AIVision-App"
 
-echo      PyInstaller temp : %PYI_TEMP%
-echo      Final output     : %FINAL_DIST%\AIVision\aivision.exe
+echo      PyInstaller temp : %PYI_WORK%
+echo      Final output     : %PYI_DIST%\AIVision\aivision.exe
 
 python -m PyInstaller launcher.spec --noconfirm ^
     --workpath "%PYI_WORK%" ^
     --distpath "%PYI_DIST%"
 if errorlevel 1 ( echo [ERROR] PyInstaller failed. & exit /b 1 )
-
-:: Copy result from TEMP to final location
-echo.
-echo      Copying output to %FINAL_DIST%...
-if exist "%FINAL_DIST%\AIVision" rmdir /s /q "%FINAL_DIST%\AIVision" 2>nul
-xcopy /e /i /y /q "%PYI_DIST%\AIVision" "%FINAL_DIST%\AIVision"
-if errorlevel 1 ( echo [ERROR] Copy to dist failed. & exit /b 1 )
 
 :: --------------------------------------------------------------------------
 :: Done
@@ -144,11 +137,11 @@ if errorlevel 1 ( echo [ERROR] Copy to dist failed. & exit /b 1 )
 echo.
 echo ============================================================
 echo  BUILD COMPLETE
-echo  Output: %DEPLOY_DIR%dist\AIVision\aivision.exe
+echo  Output: D:\AIVision-App\AIVision\aivision.exe
 echo ============================================================
 echo.
 echo To run:
-echo   cd dist\AIVision
+echo   cd D:\AIVision-App\AIVision
 echo   aivision.exe
 echo.
 echo On first launch, the app will:

@@ -49,10 +49,13 @@ for pkg in [
     "transformers", "tokenizers", "huggingface_hub",
     "ultralytics",
     "supervision",
+    "matplotlib",       # supervision.draw.color imports matplotlib
     "PIL",
     "cv2",
     "torch", "torchvision",
     "sentencepiece",
+    "scipy",
+    "sklearn",
 ]:
     try:
         d, b, h = collect_all(pkg)
