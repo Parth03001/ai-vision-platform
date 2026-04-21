@@ -117,18 +117,27 @@ echo.
 echo [6/6] Running PyInstaller...
 cd /d "%DEPLOY_DIR%"
 
-:: Use %TEMP% as workpath so Windows Defender cannot lock files in the repo.
-:: This avoids PermissionError on build\launcher\base_library.zip without needing admin.
-set "PYI_WORK=%TEMP%\aivision-pyinstaller"
-set "PYI_DIST=%DEPLOY_DIR%dist"
+:: Build entirely inside %TEMP% so Windows Defender cannot lock files in
+:: the repo. Model files and uploads are never bundled (runtime-only data).
+set "PYI_TEMP=%TEMP%\aivision-pyinstaller"
+set "PYI_WORK=%PYI_TEMP%\work"
+set "PYI_DIST=%PYI_TEMP%\dist"
+set "FINAL_DIST=%DEPLOY_DIR%dist"
 
-echo      Build temp : %PYI_WORK%
-echo      Output     : %PYI_DIST%
+echo      PyInstaller temp : %PYI_TEMP%
+echo      Final output     : %FINAL_DIST%\AIVision\aivision.exe
 
 python -m PyInstaller launcher.spec --noconfirm ^
     --workpath "%PYI_WORK%" ^
     --distpath "%PYI_DIST%"
 if errorlevel 1 ( echo [ERROR] PyInstaller failed. & exit /b 1 )
+
+:: Copy result from TEMP to final location
+echo.
+echo      Copying output to %FINAL_DIST%...
+if exist "%FINAL_DIST%\AIVision" rmdir /s /q "%FINAL_DIST%\AIVision" 2>nul
+xcopy /e /i /y /q "%PYI_DIST%\AIVision" "%FINAL_DIST%\AIVision"
+if errorlevel 1 ( echo [ERROR] Copy to dist failed. & exit /b 1 )
 
 :: --------------------------------------------------------------------------
 :: Done

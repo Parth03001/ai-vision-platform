@@ -62,8 +62,19 @@ for pkg in [
     except Exception:
         pass
 
-# Backend source — add as a data tree so imports work at runtime
-datas += [(str(BACKEND), "backend")]
+# Backend source — copy only app code, never data/ (models & uploads are
+# created fresh at runtime and must never be bundled into the EXE)
+for item in BACKEND.iterdir():
+    if item.name in ("data", "__pycache__", ".env", ".env.example"):
+        continue
+    if item.is_dir():
+        # Recursively add subdirectory, skipping any __pycache__ inside
+        for f in item.rglob("*"):
+            if f.is_file() and "__pycache__" not in f.parts:
+                rel_dest = "backend/" + str(f.relative_to(BACKEND).parent).replace("\\", "/")
+                datas += [(str(f), rel_dest)]
+    elif item.is_file():
+        datas += [(str(item), "backend")]
 
 # React build artefacts
 if FRONTEND.exists():
