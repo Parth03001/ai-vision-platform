@@ -37,7 +37,7 @@ if errorlevel 1 (
     exit /b 1
 )
 node --version
-npm --version
+call npm --version
 
 :: --------------------------------------------------------------------------
 :: Step 3 - Build React frontend
@@ -48,13 +48,13 @@ cd /d "%REPO_ROOT%\frontend"
 
 if not exist node_modules (
     echo      Installing npm packages...
-    npm install --legacy-peer-deps
+    call npm install --legacy-peer-deps
     if errorlevel 1 ( echo [ERROR] npm install failed. & exit /b 1 )
 )
 
 set REACT_APP_API_URL=http://localhost:8000/api/v1
 set REACT_APP_BASE_URL=http://localhost:8000
-npm run build
+call npm run build
 if errorlevel 1 ( echo [ERROR] React build failed. & exit /b 1 )
 echo      Frontend built successfully.
 
