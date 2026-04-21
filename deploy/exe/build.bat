@@ -117,9 +117,8 @@ echo.
 echo [6/6] Running PyInstaller...
 cd /d "%DEPLOY_DIR%"
 
-:: Build entirely inside %TEMP% so Windows Defender cannot lock files in
-:: the repo. Model files and uploads are never bundled (runtime-only data).
-set "PYI_TEMP=%TEMP%\aivision-pyinstaller"
+:: Build on D: drive to avoid C: space issues and Defender file locks.
+set "PYI_TEMP=D:\aivision-build-temp"
 set "PYI_WORK=%PYI_TEMP%\work"
 set "PYI_DIST=%PYI_TEMP%\dist"
 set "FINAL_DIST=%DEPLOY_DIR%dist"
