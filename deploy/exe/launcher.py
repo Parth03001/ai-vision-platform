@@ -124,8 +124,8 @@ def main() -> None:
     db_name = c["db_name"]
     db_user = c["db_user"]
     db_password = c["db_password"]
-    open_browser = c.getboolean("aivision", "open_browser", fallback=True)
-    skip_cuda = c.getboolean("aivision", "skip_cuda_check", fallback=False)
+    open_browser = c.getboolean("open_browser", fallback=True)
+    skip_cuda = c.getboolean("skip_cuda_check", fallback=False)
 
     # ------------------------------------------------------------------
     # Step 1 — CUDA verification
