@@ -77,6 +77,7 @@ if errorlevel 1 ( echo [ERROR] pip install failed. & exit /b 1 )
 :: --------------------------------------------------------------------------
 echo.
 echo [5/6] Checking portable service binaries...
+echo [DEBUG] Checking PG path: %DEPLOY_DIR%resources\postgres\bin\pg_ctl.exe
 
 if not exist "%DEPLOY_DIR%resources\postgres\bin\pg_ctl.exe" (
     echo.
