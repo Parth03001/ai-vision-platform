@@ -103,6 +103,20 @@ hiddenimports += [
     "uvicorn.protocols.websockets.auto",
     "email_validator",
     "multipart",
+    # passlib dynamically loads password handlers via its registry
+    "passlib.handlers.pbkdf2",
+    "passlib.handlers.bcrypt",
+    "passlib.handlers.sha2_crypt",
+    "passlib.handlers.md5_crypt",
+    "passlib.handlers.des_crypt",
+    "passlib.handlers.argon2",
+    "passlib.handlers.scrypt",
+    "passlib.utils.pbkdf2",
+    "passlib.utils.handlers",
+    "passlib.utils.binary",
+    "passlib.utils.decor",
+    "passlib.crypto.digest",
+    "passlib.crypto.scrypt",
 ]
 
 # ---------------------------------------------------------------------------
