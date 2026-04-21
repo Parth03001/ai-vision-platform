@@ -42,6 +42,13 @@ hiddenimports = []
 # Explicitly collect all encodings submodules (Conda stdlib fix)
 hiddenimports += collect_submodules("encodings")
 
+# matplotlib — use collect_submodules + collect_data_files instead of
+# collect_all to avoid the '_c_internal_utils circular import' bug where
+# PyInstaller double-bundles the package and partially initializes it
+from PyInstaller.utils.hooks import collect_data_files
+hiddenimports += collect_submodules("matplotlib")
+datas += collect_data_files("matplotlib")
+
 for pkg in [
     "uvicorn", "fastapi", "starlette",
     "sqlalchemy", "asyncpg", "psycopg2",
@@ -49,7 +56,6 @@ for pkg in [
     "transformers", "tokenizers", "huggingface_hub",
     "ultralytics",
     "supervision",
-    "matplotlib",       # supervision.draw.color imports matplotlib
     "PIL",
     "cv2",
     "torch", "torchvision",
@@ -145,6 +151,20 @@ hiddenimports += [
     "passlib.utils.decor",
     "passlib.crypto.digest",
     "passlib.crypto.scrypt",
+    # matplotlib C extensions — must be explicit or PyInstaller leaves them
+    # out causing 'partially initialized module' circular import at runtime
+    "matplotlib._c_internal_utils",
+    "matplotlib._image",
+    "matplotlib._path",
+    "matplotlib._qhull",
+    "matplotlib._tri",
+    "matplotlib._ttconv",
+    "matplotlib.backends.backend_agg",
+    "matplotlib.backends.backend_svg",
+    # supervision optional deps
+    "supervision.draw.color",
+    "supervision.annotators.core",
+    "supervision.annotators.utils",
 ]
 
 # ---------------------------------------------------------------------------
