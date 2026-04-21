@@ -116,9 +116,18 @@ if exist "resources\redis\redis-server.exe" (
 echo.
 echo [6/6] Running PyInstaller...
 cd /d "%DEPLOY_DIR%"
-if exist dist rmdir /s /q dist
-if exist build rmdir /s /q build
-python -m PyInstaller launcher.spec --clean --noconfirm
+
+:: Use %TEMP% as workpath so Windows Defender cannot lock files in the repo.
+:: This avoids PermissionError on build\launcher\base_library.zip without needing admin.
+set "PYI_WORK=%TEMP%\aivision-pyinstaller"
+set "PYI_DIST=%DEPLOY_DIR%dist"
+
+echo      Build temp : %PYI_WORK%
+echo      Output     : %PYI_DIST%
+
+python -m PyInstaller launcher.spec --noconfirm ^
+    --workpath "%PYI_WORK%" ^
+    --distpath "%PYI_DIST%"
 if errorlevel 1 ( echo [ERROR] PyInstaller failed. & exit /b 1 )
 
 :: --------------------------------------------------------------------------
