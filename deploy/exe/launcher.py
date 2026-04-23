@@ -189,7 +189,7 @@ def main() -> None:
     # Step 5 — Celery worker
     # ------------------------------------------------------------------
     print("\n[Step 5/5] Starting Celery worker...")
-    celery = CeleryWorker()
+    celery = CeleryWorker(BASE_DIR / "logs")
     celery.start()
 
     # ------------------------------------------------------------------
