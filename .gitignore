@@ -69,6 +69,7 @@ web_modules/
 .env
 .env.*
 !.env.example
+!.env.local.example
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -146,8 +147,5 @@ backend/data/*
 *.pyc
 /datavision_hf_models
 temp_dataset_*
-*.jpg
-*.jpeg
-*.png
 runs/
 venv/

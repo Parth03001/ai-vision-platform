@@ -7,17 +7,28 @@ import AutoAnnotatePanel from './AutoAnnotatePanel';
 import MainTrainingPanel from './MainTrainingPanel';
 import LabelsPanel from './LabelsPanel';
 import ModelsPanel from './ModelsPanel';
+import ReviewPanel from './ReviewPanel';
+import VideoPanel from './VideoPanel';
+import ActiveLearningPanel from './ActiveLearningPanel';
 import './AnnotationWorkspace.css';
+import { Sparkles, AlertTriangle, X, Upload, Image as ImageIcon, Check, ArrowLeft, ArrowRight, Brain, Rocket, Eye, Target, Tag, Package, Film } from 'lucide-react';
 
-const API_URL = "http://localhost:8000/api/v1";
+import { API_URL } from '../config';
 
-const KonvaImage = ({ src }) => {
+// Reports naturalWidth/naturalHeight once loaded so the parent can use the
+// browser-corrected dimensions (EXIF orientation, etc.) for scale calculation.
+const KonvaImage = ({ src, onLoad }) => {
     const [image] = useImage(src, 'anonymous');
+    useEffect(() => {
+        if (image && onLoad) {
+            onLoad(image.naturalWidth || image.width, image.naturalHeight || image.height);
+        }
+    }, [image, onLoad]);
     return <Image image={image} />;
 };
 
 // ── Class Picker ────────────────────────────────────────────────
-const ClassPicker = ({ classes, usedClasses, onConfirm, onCancel }) => {
+const ClassPicker = ({ classes, usedClasses, onConfirm, onCancel, remaining = 0 }) => {
     const [customClass, setCustomClass] = useState('');
     const inputRef = useRef(null);
 
@@ -40,8 +51,13 @@ const ClassPicker = ({ classes, usedClasses, onConfirm, onCancel }) => {
         <div className="class-picker-overlay" onClick={onCancel}>
             <div className="class-picker" onClick={e => e.stopPropagation()}>
                 <div className="class-picker-header">
-                    <span>Select Class</span>
-                    <button className="class-picker-close" onClick={onCancel}>✕</button>
+                    <span>
+                        Select Class
+                        {remaining > 0 && (
+                            <span className="class-picker-counter"> — {remaining} left</span>
+                        )}
+                    </span>
+                    <button className="class-picker-close" onClick={onCancel}><X size={16} /></button>
                 </div>
 
                 {allOptions.length > 0 && (
@@ -110,6 +126,9 @@ const AnnotationWorkspace = ({ project, onProjectUpdated }) => {
     const [images, setImages] = useState([]);
     const [annotations, setAnnotations] = useState([]);
     const [currentImage, setCurrentImage] = useState(null);
+    // Actual displayed dimensions from the loaded image (may differ from backend
+    // stored values when EXIF orientation rotates the image 90°/270°).
+    const [loadedImageSize, setLoadedImageSize] = useState(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [newAnnotation, setNewAnnotation] = useState(null);
     const [pendingAnnotation, setPendingAnnotation] = useState(null); // bbox waiting for class
@@ -126,12 +145,20 @@ const AnnotationWorkspace = ({ project, onProjectUpdated }) => {
     const [showMainTrainingPanel, setShowMainTrainingPanel] = useState(false);
     const [showLabelsPanel, setShowLabelsPanel] = useState(false);
     const [showModelsPanel, setShowModelsPanel] = useState(false);
+    const [showReviewPanel, setShowReviewPanel] = useState(false);
+    const [showVideoPanel, setShowVideoPanel] = useState(false);
+    const [showActiveLearningPanel, setShowActiveLearningPanel] = useState(false);
+    const [suggestedImageIds, setSuggestedImageIds] = useState(null);  // Set<id> or null (sidebar highlight)
+    const [reviewFilterIds, setReviewFilterIds] = useState(null);      // Set<id> or null (ReviewPanel filter)
     // Local copy of classes so edits from LabelsPanel are reflected instantly
     const [localClasses, setLocalClasses] = useState(project.classes || []);
     const [aiPrompt, setAiPrompt] = useState('');
     const [clearExisting, setClearExisting] = useState(false);
     const [isDetecting, setIsDetecting] = useState(false);
+    const [classifyingAnnId, setClassifyingAnnId] = useState(null); // id of AI ann being classified
+    const aiQueueRef = useRef([]); // queue of {id, bbox} waiting for ClassPicker
     const canvasAreaRef = useRef(null);
+    const canvasCenterRef = useRef(null);
 
     const pollTask = useCallback((taskId, onComplete, onProgress) => {
         const interval = setInterval(async () => {
@@ -155,21 +182,46 @@ const AnnotationWorkspace = ({ project, onProjectUpdated }) => {
         return interval;
     }, []);
 
+    // Open ClassPicker for the next AI annotation in the queue
+    const processNextAIAnnotation = useCallback((img) => {
+        const queue = aiQueueRef.current;
+        if (queue.length === 0) { setClassifyingAnnId(null); return; }
+        const next = queue.shift();
+        const image = img || currentImage;
+        if (!image) return;
+        const bx = (next.bbox[0] - next.bbox[2] / 2) * image.width;
+        const by = (next.bbox[1] - next.bbox[3] / 2) * image.height;
+        const bw = next.bbox[2] * image.width;
+        const bh = next.bbox[3] * image.height;
+        setClassifyingAnnId(next.id);
+        setPendingAnnotation({ x: bx, y: by, width: bw, height: bh });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentImage]);
+
     const handleAIDetect = async () => {
         if (!currentImage || !aiPrompt.trim()) return;
         setIsDetecting(true);
+        const img = currentImage;
         try {
             const res = await axios.post(`${API_URL}/pipeline/ai-prompt`, {
                 project_id: project.id,
-                image_id: currentImage.id,
+                image_id: img.id,
                 prompt: aiPrompt.trim(),
                 clear_existing: clearExisting
             });
             pollTask(res.data.task_id, (result) => {
                 setIsDetecting(false);
                 if (result.count > 0) {
-                    showStatus(`✓ Found ${result.count} ${aiPrompt}`);
-                    handleImageClick(currentImage); // Refresh annotations
+                    showStatus(`✓ Found ${result.count} object${result.count !== 1 ? 's' : ''} — assign classes below`);
+                    // Fetch fresh annotations then queue unclassified ones for ClassPicker
+                    axios.get(`${API_URL}/annotations/image/${img.id}`).then(r => {
+                        setAnnotations(r.data);
+                        const unclassified = r.data.filter(a => a.source === 'ai_prompt' && !a.class_name);
+                        if (unclassified.length > 0) {
+                            aiQueueRef.current = unclassified.map(a => ({ id: a.id, bbox: a.bbox }));
+                            processNextAIAnnotation(img);
+                        }
+                    });
                 } else {
                     showStatus("No objects found.");
                 }
@@ -252,6 +304,25 @@ Do you want to proceed?`;
         }
     };
 
+    const handleMarkEmpty = async () => {
+        if (!currentImage) return;
+        try {
+            await axios.patch(`${API_URL}/images/${currentImage.id}/mark-empty`);
+            // Update sidebar status
+            setImages(prev => prev.map(img =>
+                img.id === currentImage.id ? { ...img, status: 'annotated' } : img
+            ));
+            showStatus('Marked as no objects — frame skipped.');
+            // Auto-advance to next pending image
+            const nextPending = images.find(
+                img => img.id !== currentImage.id && img.status === 'pending'
+            );
+            if (nextPending) handleImageClick(nextPending);
+        } catch {
+            setError('Failed to mark image as empty.');
+        }
+    };
+
     const fileInputRef = useRef(null);
 
     useEffect(() => {
@@ -262,24 +333,45 @@ Do you want to proceed?`;
         }
     }, [project]);
 
+    // Re-sync localClasses whenever the active project changes (e.g. user
+    // navigates back to dashboard then reopens the project — ProjectList may
+    // return stale data that doesn't yet include classes added this session).
+    useEffect(() => {
+        axios.get(`${API_URL}/projects/${project.id}`)
+            .then(res => setLocalClasses(res.data.classes || []))
+            .catch(() => setLocalClasses(project.classes || []));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [project.id]);
+
     const showStatus = (msg) => {
         setStatusMsg(msg);
         setTimeout(() => setStatusMsg(null), 3500);
     };
 
+    // Called from ActiveLearningPanel when user clicks "Annotate These"
+    const handleAnnotateImages = (imageIds) => {
+        const idSet = new Set(imageIds.map(String));
+        setSuggestedImageIds(idSet);   // highlight in sidebar
+        setReviewFilterIds(idSet);     // open in ReviewPanel
+        setShowReviewPanel(true);
+    };
+
+    const handleImageLoad = useCallback((w, h) => {
+        setLoadedImageSize({ width: w, height: h });
+    }, []);
+
     const handleImageClick = (image) => {
         setCurrentImage(image);
+        setLoadedImageSize(null); // reset until new image loads
         setPendingAnnotation(null);
         setNewAnnotation(null);
         axios.get(`${API_URL}/annotations/image/${image.id}`)
             .then(res => {
                 setAnnotations(res.data);
-                // Merge any classes from this image into the workspace-wide used list
-                if (res.data.length > 0) {
-                    setAllUsedClasses(prev => {
-                        const combined = [...new Set([...prev, ...res.data.map(a => a.class_name)])];
-                        return combined;
-                    });
+                // Merge any classes from this image into the workspace-wide used list (skip empty)
+                const named = res.data.map(a => a.class_name).filter(Boolean);
+                if (named.length > 0) {
+                    setAllUsedClasses(prev => [...new Set([...prev, ...named])]);
                 }
             })
             .catch(() => setAnnotations([]));
@@ -380,63 +472,106 @@ Do you want to proceed?`;
 
     const handleClassConfirm = (className) => {
         const ann = pendingAnnotation;
+        const annId = classifyingAnnId;
         setPendingAnnotation(null);
         setNewAnnotation(null);
-        const bbox = [
-            (ann.x + ann.width / 2) / currentImage.width,
-            (ann.y + ann.height / 2) / currentImage.height,
-            ann.width / currentImage.width,
-            ann.height / currentImage.height,
-        ];
-        axios.post(`${API_URL}/annotations`, {
-            image_id: currentImage.id,
-            class_name: className,
-            bbox,
-        })
-            .then(res => {
-                setAnnotations(prev => [...prev, res.data]);
-                // Update status in sidebar without a network round-trip
-                setImages(prev => prev.map(img =>
-                    img.id === currentImage.id ? { ...img, status: 'annotated' } : img
-                ));
-                // Persist class name across image switches
-                setAllUsedClasses(prev =>
-                    prev.includes(className) ? prev : [...prev, className]
-                );
-                showStatus(`Annotation added: ${className}`);
+        setClassifyingAnnId(null);
+
+        if (annId) {
+            // Classifying an existing AI-detected annotation — PATCH it
+            axios.patch(`${API_URL}/annotations/${annId}/classify`, { class_name: className })
+                .then(res => {
+                    setAnnotations(prev => prev.map(a => a.id === annId ? res.data : a));
+                    setAllUsedClasses(prev => prev.includes(className) ? prev : [...prev, className]);
+                    showStatus(`Classified: ${className}`);
+                    processNextAIAnnotation();
+                })
+                .catch(() => {
+                    setError("Failed to save class.");
+                    processNextAIAnnotation();
+                });
+        } else {
+            // New drawn annotation — POST it
+            const bbox = [
+                (ann.x + ann.width / 2) / imgW,
+                (ann.y + ann.height / 2) / imgH,
+                ann.width / imgW,
+                ann.height / imgH,
+            ];
+            axios.post(`${API_URL}/annotations`, {
+                image_id: currentImage.id,
+                class_name: className,
+                bbox,
             })
-            .catch(() => setError("Failed to save annotation."));
+                .then(res => {
+                    setAnnotations(prev => [...prev, res.data]);
+                    setImages(prev => prev.map(img =>
+                        img.id === currentImage.id ? { ...img, status: 'annotated' } : img
+                    ));
+                    setAllUsedClasses(prev =>
+                        prev.includes(className) ? prev : [...prev, className]
+                    );
+                    showStatus(`Annotation added: ${className}`);
+                })
+                .catch(() => setError("Failed to save annotation."));
+        }
     };
 
     const handleClassCancel = () => {
+        const wasAI = !!classifyingAnnId;
         setPendingAnnotation(null);
         setNewAnnotation(null);
+        setClassifyingAnnId(null);
+        if (wasAI) {
+            // Skip this one, move to next in queue
+            processNextAIAnnotation();
+        }
     };
 
     // startSeedTraining replaced by TrainingPanel
 
     const startAutoAnnotation = () => setShowAutoAnnotatePanel(true);
 
-    // Measure canvas area on mount and resize
-    useEffect(() => {
-        const measure = () => {
-            if (canvasAreaRef.current) {
-                const w = canvasAreaRef.current.clientWidth - 48;
-                const h = canvasAreaRef.current.clientHeight - 96;
-                setCanvasSize({ w: Math.max(w, 300), h: Math.max(h, 300) });
+    // Measure the canvas-center container directly to avoid cropping from imprecise offsets
+    const measureCanvas = useCallback(() => {
+        if (canvasCenterRef.current) {
+            const r = canvasCenterRef.current.getBoundingClientRect();
+            if (r.width > 0 && r.height > 0) {
+                setCanvasSize({ w: Math.max(r.width, 300), h: Math.max(r.height, 300) });
+                return;
             }
-        };
-        measure();
-        window.addEventListener('resize', measure);
-        return () => window.removeEventListener('resize', measure);
+        }
+        // Fallback: measure the outer area with corrected offsets
+        // padding(40) + toolbar(40) + gap(10) + ai-bar(52) + gap(10) = 152 height overhead; 40 width overhead
+        if (canvasAreaRef.current) {
+            const w = canvasAreaRef.current.clientWidth - 40;
+            const h = canvasAreaRef.current.clientHeight - 152;
+            setCanvasSize({ w: Math.max(w, 300), h: Math.max(h, 300) });
+        }
     }, []);
+
+    useEffect(() => {
+        measureCanvas();
+        window.addEventListener('resize', measureCanvas);
+        return () => window.removeEventListener('resize', measureCanvas);
+    }, [measureCanvas]);
+
+    // Re-measure after an image is selected so canvasCenterRef is populated
+    useEffect(() => {
+        measureCanvas();
+    }, [currentImage?.id, measureCanvas]);
+
+    // Use the browser-reported natural dimensions once the image loads (EXIF-corrected).
+    // Fall back to the backend-stored values while the image is still loading.
+    const imgW = loadedImageSize?.width  || currentImage?.width  || 1;
+    const imgH = loadedImageSize?.height || currentImage?.height || 1;
 
     // Fit image inside available canvas area, preserving aspect ratio
     const scale = currentImage
-        ? Math.min(1, canvasSize.w / currentImage.width, canvasSize.h / currentImage.height)
+        ? Math.min(1, canvasSize.w / imgW, canvasSize.h / imgH)
         : 1;
-    const stageW = currentImage ? Math.round(currentImage.width * scale) : canvasSize.w;
-    const stageH = currentImage ? Math.round(currentImage.height * scale) : canvasSize.h;
+    const stageW = currentImage ? Math.round(imgW * scale) : canvasSize.w;
+    const stageH = currentImage ? Math.round(imgH * scale) : canvasSize.h;
 
     // The box to draw while mouse is held or while picker is open
     const drawnBox = pendingAnnotation || newAnnotation;
@@ -448,24 +583,37 @@ Do you want to proceed?`;
                 <div className="sidebar-section sidebar-actions">
                     <p className="sidebar-label">Pipeline</p>
                     <button className="btn-action" onClick={() => setShowTrainingPanel(true)}>
-                        🚀 Train Seed Model
+                        <Rocket size={14} /> Train Seed Model
                     </button>
                     <button className="btn-action btn-action-secondary" onClick={startAutoAnnotation}>
-                        ✨ Auto-Annotate
+                        <Sparkles size={14} /> Auto-Annotate
+                    </button>
+                    <button className="btn-action btn-action-al" onClick={() => setShowActiveLearningPanel(true)}>
+                        <Brain size={14} /> Active Learning
+                    </button>
+                    <button
+                        className="btn-action btn-action-review"
+                        onClick={() => setShowReviewPanel(true)}
+                        disabled={images.filter(img => img.status === 'annotated').length === 0}
+                    >
+                        <Eye size={14} /> Review Annotations
                     </button>
                     <button className="btn-action btn-action-main" onClick={() => setShowMainTrainingPanel(true)}>
-                        🎯 Train Main Model
+                        <Target size={14} /> Train Main Model
                     </button>
                     <button className="btn-action btn-action-labels" onClick={() => setShowLabelsPanel(true)}>
-                        🏷️ Edit Labels
+                        <Tag size={14} /> Edit Labels
                     </button>
                     <button className="btn-action btn-action-models" onClick={() => setShowModelsPanel(true)}>
-                        📦 View Models
+                        <Package size={14} /> View Models
                     </button>
                 </div>
 
                 <div className="sidebar-section">
                     <p className="sidebar-label">Images ({images.length})</p>
+                    <button className="btn-action btn-action-video" onClick={() => setShowVideoPanel(true)}>
+                        <Film size={14} /> Import Video
+                    </button>
                     <label className={`upload-btn ${uploading ? 'uploading' : ''}`}>
                         {uploading
                             ? `Uploading ${uploadFileCount} file${uploadFileCount !== 1 ? 's' : ''}…`
@@ -508,27 +656,38 @@ Do you want to proceed?`;
                     {images.length === 0 ? (
                         <div className="sidebar-empty-drop">
                             <p className="sidebar-empty">No images yet.</p>
-                            <p className="drop-hint">↑ Upload or drop images here</p>
+                            <p className="drop-hint">Upload or drop images here</p>
                         </div>
                     ) : (
                         <>
-                            {images.map(img => (
+                            {/* AL suggestion filter banner */}
+                            {suggestedImageIds && (
+                                <div className="al-filter-banner">
+                                    <span><Target size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{suggestedImageIds.size} suggested</span>
+                                    <button className="al-filter-clear" onClick={() => setSuggestedImageIds(null)}>Clear</button>
+                                </div>
+                            )}
+                            {images.map(img => {
+                                const isSuggested = suggestedImageIds?.has(String(img.id));
+                                return (
                                 <div
                                     key={img.id}
-                                    className={`image-item ${currentImage?.id === img.id ? 'active' : ''}`}
+                                    className={`image-item ${currentImage?.id === img.id ? 'active' : ''} ${isSuggested ? 'image-item--suggested' : ''}`}
                                     onClick={() => handleImageClick(img)}
                                 >
                                     <span className="image-item-dot"></span>
                                     <span className="image-item-name">{img.filename}</span>
+                                    {isSuggested && <span className="image-item-al-badge"><Target size={9} /></span>}
                                     <span className={`image-item-status status-${img.status}`}>
                                         {img.status}
                                     </span>
                                 </div>
-                            ))}
+                                );
+                            })}
                             {/* Drop overlay shown on top of the list while dragging */}
                             {isDragOver && (
                                 <div className="drop-overlay">
-                                    <span className="drop-overlay-icon">⬆</span>
+                                    <span className="drop-overlay-icon"><Upload size={24} /></span>
                                     <span>Drop to add images</span>
                                 </div>
                             )}
@@ -541,9 +700,9 @@ Do you want to proceed?`;
             <div className="workspace-canvas-area" ref={canvasAreaRef}>
                 {error && (
                     <div className="error-banner">
-                        <span className="error-icon">⚠</span>
+                        <span className="error-icon"><AlertTriangle size={16} /></span>
                         {error}
-                        <button className="error-dismiss" onClick={() => setError(null)}>✕</button>
+                        <button className="error-dismiss" onClick={() => setError(null)}><X size={16} /></button>
                     </div>
                 )}
 
@@ -553,17 +712,26 @@ Do you want to proceed?`;
                     <div className="canvas-wrapper">
                         <div className="canvas-toolbar">
                             <span className="canvas-filename">{currentImage.filename}</span>
-                            <span className="canvas-dims">{currentImage.width} × {currentImage.height}px</span>
+                            <span className="canvas-dims">{imgW} × {imgH}px</span>
                             <span className="canvas-hint">Draw a box to annotate</span>
                             <span className="canvas-ann-count">
                                 {annotations.length} annotation{annotations.length !== 1 ? 's' : ''}
                             </span>
+                            {annotations.length === 0 && (
+                                <button
+                                    className="btn-no-objects"
+                                    onClick={handleMarkEmpty}
+                                    title="No objects in this frame — mark as done and advance to next image"
+                                >
+                                    <Check size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} /> No Objects
+                                </button>
+                            )}
                         </div>
 
                         {/* ── AI Prompt Bar (Below Toolbar) ── */}
                         <div className="ai-prompt-bar">
                             <div className="ai-prompt-bar-left">
-                                <span className="ai-prompt-spark">✦</span>
+                                <span className="ai-prompt-spark"><Sparkles size={16} /></span>
                                 <input
                                     type="text"
                                     className="ai-prompt-bar-input"
@@ -599,7 +767,7 @@ Do you want to proceed?`;
                             </div>
                         </div>
 
-                        <div className="canvas-center">
+                        <div className="canvas-center" ref={canvasCenterRef}>
                             <Stage
                                 className="canvas-stage"
                                 width={stageW}
@@ -613,14 +781,16 @@ Do you want to proceed?`;
                                 <Layer>
                                     <KonvaImage
                                         src={`${API_URL.replace("/api/v1", "")}${currentImage.filepath}`}
+                                        onLoad={handleImageLoad}
                                     />
                                     {annotations.map(ann => {
-                                        const bx = (ann.bbox[0] - ann.bbox[2] / 2) * currentImage.width;
-                                        const by = (ann.bbox[1] - ann.bbox[3] / 2) * currentImage.height;
-                                        const bw = ann.bbox[2] * currentImage.width;
-                                        const bh = ann.bbox[3] * currentImage.height;
-                                        // manual = rose red, auto = violet
-                                        const color = ann.source === 'auto' ? '#a78bfa' : '#f43f5e';
+                                        const bx = (ann.bbox[0] - ann.bbox[2] / 2) * imgW;
+                                        const by = (ann.bbox[1] - ann.bbox[3] / 2) * imgH;
+                                        const bw = ann.bbox[2] * imgW;
+                                        const bh = ann.bbox[3] * imgH;
+                                        const unclassified = ann.source === 'ai_prompt' && !ann.class_name;
+                                        // manual = rose red, auto = violet, unclassified = amber
+                                        const color = unclassified ? '#f59e0b' : ann.source === 'auto' ? '#a78bfa' : '#f43f5e';
                                         const fontSize = Math.max(10, 13 / scale);
                                         const padX = 4 / scale;
                                         const padY = 2 / scale;
@@ -631,14 +801,17 @@ Do you want to proceed?`;
                                                     x={bx} y={by} width={bw} height={bh}
                                                     stroke={color}
                                                     strokeWidth={1.5 / scale}
-                                                    fill={ann.source === 'auto'
-                                                        ? 'rgba(167,139,250,0.07)'
-                                                        : 'rgba(244,63,94,0.07)'}
+                                                    fill={unclassified
+                                                        ? 'rgba(245,158,11,0.10)'
+                                                        : ann.source === 'auto'
+                                                            ? 'rgba(167,139,250,0.07)'
+                                                            : 'rgba(244,63,94,0.07)'}
+                                                    dash={unclassified ? [6 / scale, 3 / scale] : undefined}
                                                 />
                                                 {/* Label background */}
                                                 <Rect
                                                     x={bx} y={by - labelH}
-                                                    width={Math.min(bw, (ann.class_name.length * fontSize * 0.6) + padX * 2 + (ann.source === 'auto' ? 30/scale : 0))}
+                                                    width={Math.min(bw, ((unclassified ? 12 : ann.class_name.length) * fontSize * 0.6) + padX * 2 + 30/scale)}
                                                     height={labelH}
                                                     fill={color}
                                                     cornerRadius={2 / scale}
@@ -646,7 +819,7 @@ Do you want to proceed?`;
                                                 <Text
                                                     x={bx + padX}
                                                     y={by - labelH + padY}
-                                                    text={`${ann.class_name}${ann.source === 'auto' ? ' ✦' : ''}`}
+                                                    text={unclassified ? '? unclassified' : `${ann.class_name}${ann.source === 'auto' ? ' ✦' : ''}`}
                                                     fontSize={fontSize}
                                                     fontFamily="sans-serif"
                                                     fill="#fff"
@@ -714,10 +887,10 @@ Do you want to proceed?`;
                                             y={drawnBox.y}
                                             width={drawnBox.width}
                                             height={drawnBox.height}
-                                            stroke="#6366f1"
+                                            stroke="#dc143c"
                                             strokeWidth={2 / scale}
                                             dash={[6 / scale, 3 / scale]}
-                                            fill="rgba(99,102,241,0.08)"
+                                            fill="rgba(220,20,60,0.08)"
                                         />
                                     )}
                                 </Layer>
@@ -730,6 +903,7 @@ Do you want to proceed?`;
                                     usedClasses={allUsedClasses}
                                     onConfirm={handleClassConfirm}
                                     onCancel={handleClassCancel}
+                                    remaining={classifyingAnnId ? aiQueueRef.current.length + 1 : 0}
                                 />
                             )}
                         </div>
@@ -753,16 +927,16 @@ Do you want to proceed?`;
                                         </span>
                                         {ann.source !== 'manual' && (
                                             <div className="annotation-verify-actions">
-                                                <button 
-                                                    className="ann-btn ann-btn-accept" 
+                                                <button
+                                                    className="ann-btn ann-btn-accept"
                                                     title="Accept"
                                                     onClick={() => handleAcceptAnnotation(ann.id)}
-                                                >✓</button>
-                                                <button 
-                                                    className="ann-btn ann-btn-reject" 
+                                                ><Check size={10} /></button>
+                                                <button
+                                                    className="ann-btn ann-btn-reject"
                                                     title="Reject"
                                                     onClick={() => handleRejectAnnotation(ann.id)}
-                                                >✕</button>
+                                                ><X size={10} /></button>
                                             </div>
                                         )}
                                     </div>
@@ -772,7 +946,7 @@ Do you want to proceed?`;
                     </div>
                 ) : (
                     <div className="canvas-placeholder">
-                        <div className="placeholder-icon">🖼️</div>
+                        <div className="placeholder-icon"><ImageIcon size={48} /></div>
                         <h3>Select an image</h3>
                         <p>Choose an image from the sidebar to start annotating.</p>
                     </div>
@@ -819,6 +993,25 @@ Do you want to proceed?`;
                     }}
                 />
             )}
+            {showReviewPanel && (
+                <ReviewPanel
+                    project={{ ...project, classes: localClasses }}
+                    images={images}
+                    filterImageIds={reviewFilterIds}
+                    onClose={() => { setShowReviewPanel(false); setReviewFilterIds(null); }}
+                    onAnnotationsUpdated={() => {
+                        // Refresh images and reload current image annotations after review
+                        axios.get(`${API_URL}/images/project/${project.id}`)
+                            .then(res => setImages(res.data))
+                            .catch(() => {});
+                        if (currentImage) {
+                            axios.get(`${API_URL}/annotations/image/${currentImage.id}`)
+                                .then(res => setAnnotations(res.data))
+                                .catch(() => {});
+                        }
+                    }}
+                />
+            )}
             {showModelsPanel && (
                 <ModelsPanel
                     project={project}
@@ -826,6 +1019,31 @@ Do you want to proceed?`;
                     onGoToTrain={(type) => {
                         if (type === 'seed') setShowTrainingPanel(true);
                         else setShowMainTrainingPanel(true);
+                    }}
+                />
+            )}
+            {showVideoPanel && (
+                <VideoPanel
+                    project={project}
+                    onClose={() => setShowVideoPanel(false)}
+                    onFramesExtracted={() => {
+                        // Refresh image list so extracted frames appear
+                        axios.get(`${API_URL}/images/project/${project.id}`)
+                            .then(res => setImages(res.data))
+                            .catch(() => {});
+                    }}
+                />
+            )}
+            {showActiveLearningPanel && (
+                <ActiveLearningPanel
+                    project={project}
+                    onClose={() => setShowActiveLearningPanel(false)}
+                    onAnnotateImages={handleAnnotateImages}
+                    onAnnotationsUpdated={() => {
+                        // Refresh image list so curriculum-annotated images are reflected
+                        axios.get(`${API_URL}/images/project/${project.id}`)
+                            .then(res => setImages(res.data))
+                            .catch(() => {});
                     }}
                 />
             )}

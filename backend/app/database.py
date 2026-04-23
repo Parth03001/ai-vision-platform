@@ -93,6 +93,12 @@ async def init_db() -> None:
     from .models.annotation import Annotation     # noqa: F401
     from .models.training_job import TrainingJob  # noqa: F401
     from .models.user import User                 # noqa: F401
+    from .models.video import Video               # noqa: F401
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Migration: add user_id to projects for existing installations
+        from sqlalchemy import text
+        await conn.execute(text(
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS user_id VARCHAR(36)"
+        ))

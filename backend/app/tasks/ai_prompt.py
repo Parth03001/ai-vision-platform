@@ -30,26 +30,36 @@ def load_ai_models():
     
     if _MODELS["m_dino"] is None:
         print(f"Loading AI Prompt models to {device}...")
-        
-        # Get absolute path to the project root (D:\ai-vision-platform)
-        # assuming this file is in backend/app/tasks/
-        base_dir = Path(__file__).resolve().parents[3] 
-        
-        dino_path   = str(base_dir / "datavision_hf_models" / "grounding-dino-base")
-        sam2_path   = str(base_dir / "datavision_hf_models" / "sam2-hiera-large")
-        siglip_path = str(base_dir / "datavision_hf_models" / "siglip-so400m-patch14-384")
+
+        # Use paths from settings (set via env vars in docker-compose / .env).
+        # Do NOT compute paths relative to __file__ — the Docker working directory
+        # makes parents[3] resolve to "/" causing HuggingFace repo-ID validation errors.
+        dino_path   = settings.grounding_dino_path
+        sam2_path   = settings.sam2_path
+        siglip_path = settings.siglip_path
+
+        # Validate paths exist before calling from_pretrained. HuggingFace falls back
+        # to repo-ID validation when the directory is missing, producing a misleading
+        # "Repo id must be in the form..." error instead of a clear "not found" message.
+        for name, path in [("GROUNDING_DINO_PATH", dino_path), ("SAM2_PATH", sam2_path), ("SIGLIP_PATH", siglip_path)]:
+            if not Path(path).is_dir():
+                raise FileNotFoundError(
+                    f"Model directory not found: {path}\n"
+                    f"Set the {name} env var to the correct local path, or copy the model files there.\n"
+                    f"Expected inside the container at: {path}"
+                )
 
         print(f"  - Loading DINO from {dino_path}...")
-        _MODELS["p_dino"] = AutoProcessor.from_pretrained(dino_path)
-        _MODELS["m_dino"] = AutoModelForZeroShotObjectDetection.from_pretrained(dino_path).to(device)
-        
+        _MODELS["p_dino"] = AutoProcessor.from_pretrained(dino_path, local_files_only=True)
+        _MODELS["m_dino"] = AutoModelForZeroShotObjectDetection.from_pretrained(dino_path, local_files_only=True).to(device)
+
         print(f"  - Loading SAM 2 from {sam2_path}...")
-        _MODELS["p_sam2"] = Sam2Processor.from_pretrained(sam2_path)
-        _MODELS["m_sam2"] = Sam2Model.from_pretrained(sam2_path).to(device)
-        
+        _MODELS["p_sam2"] = Sam2Processor.from_pretrained(sam2_path, local_files_only=True)
+        _MODELS["m_sam2"] = Sam2Model.from_pretrained(sam2_path, local_files_only=True).to(device)
+
         print(f"  - Loading SigLIP from {siglip_path}...")
-        _MODELS["p_siglip"] = AutoProcessor.from_pretrained(siglip_path)
-        _MODELS["m_siglip"] = AutoModelForZeroShotImageClassification.from_pretrained(siglip_path).to(device)
+        _MODELS["p_siglip"] = AutoProcessor.from_pretrained(siglip_path, local_files_only=True)
+        _MODELS["m_siglip"] = AutoModelForZeroShotImageClassification.from_pretrained(siglip_path, local_files_only=True).to(device)
     
     return _MODELS, device
 
@@ -88,7 +98,7 @@ def refine_masks(image, boxes, processor, model, device):
     final_masks = []
     for i in range(len(boxes)):
         iou_scores = outputs.iou_scores[0, i].cpu().numpy()
-        best_idx = 2 if iou_scores[2] > (np.max(iou_scores) - 0.15) else np.argmax(iou_scores)
+        best_idx = np.argmax(iou_scores)
         raw_mask = outputs.pred_masks[0, i, best_idx]
         mask_full = torch.nn.functional.interpolate(
             raw_mask.unsqueeze(0).unsqueeze(0), 
@@ -128,7 +138,9 @@ def detect_with_prompt(self, project_id: str, image_id: str, prompt: str, clear_
         outputs_dino = models["m_dino"](**inputs_dino)
     
     results_dino = models["p_dino"].post_process_grounded_object_detection(
-        outputs_dino, inputs_dino.input_ids, threshold=0.15, text_threshold=0.15,
+        outputs_dino, inputs_dino.input_ids,
+        threshold=settings.dino_box_threshold,
+        text_threshold=settings.dino_text_threshold,
         target_sizes=torch.Tensor([[h, w]]).to(device)
     )[0]
     
@@ -141,46 +153,36 @@ def detect_with_prompt(self, project_id: str, image_id: str, prompt: str, clear_
     predictions = np.concatenate([boxes, scores.reshape(-1, 1)], axis=1)
     keep = sv.box_non_max_suppression(predictions, iou_threshold=0.5)
     boxes = boxes[keep]
-    
+    scores = scores[keep]
+
     img_area = w * h
-    boxes = np.array([b for b in boxes if ((b[2]-b[0])*(b[3]-b[1])) < (img_area * 0.4)])
-    
+    size_keep = [i for i, b in enumerate(boxes) if ((b[2]-b[0])*(b[3]-b[1])) < (img_area * 0.4)]
+    boxes = boxes[size_keep]
+    scores = scores[size_keep]
+
     if len(boxes) == 0: return {"status": "success", "count": 0}
 
     # 4. Stage 2: Verification (SigLIP)
     verified_idx = verify_with_siglip(image, boxes, prompt, models["p_siglip"], models["m_siglip"], device)
     if not verified_idx: return {"status": "success", "count": 0}
     verified_boxes = boxes[verified_idx]
+    verified_scores = scores[verified_idx]
+
+    # 4b. Post-verification NMS — remove overlapping boxes that survived SigLIP
+    if len(verified_boxes) > 1:
+        v_preds = np.concatenate([verified_boxes, verified_scores.reshape(-1, 1)], axis=1)
+        v_keep = sv.box_non_max_suppression(v_preds, iou_threshold=0.4)
+        verified_boxes = verified_boxes[v_keep]
 
     # 5. Stage 3: Segmentation (SAM 2)
     masks = refine_masks(image, verified_boxes, models["p_sam2"], models["m_sam2"], device)
 
     # 6. Save to DB
     with db.get_session() as conn:
-        # ── 6a. Register class if new ──────────────────────────────
-        proj_rows = db.execute_query(
-            conn, 
-            "SELECT classes FROM projects WHERE id = :id", 
-            {"id": project_id}
-        )
-        if proj_rows:
-            raw = proj_rows[0].get("classes")
-            current_classes = []
-            if isinstance(raw, str): current_classes = json.loads(raw)
-            elif isinstance(raw, list): current_classes = raw
-            
-            if prompt not in current_classes:
-                current_classes.append(prompt)
-                db.execute_update(
-                    conn,
-                    "UPDATE projects SET classes = CAST(:cls AS JSONB) WHERE id = :id",
-                    {"cls": json.dumps(current_classes), "id": project_id}
-                )
-
-        # ── 6b. Save annotations ──────────────────────────────────
+        # ── 6a. Save annotations with empty class (user will classify via UI) ──
         if clear_existing:
             db.execute_update(conn, "DELETE FROM annotations WHERE image_id = :id", {"id": image_id})
-        
+
         ann_rows = []
         for i in range(len(verified_boxes)):
             # Convert box to normalized xywh for platform consistency
@@ -191,15 +193,15 @@ def detect_with_prompt(self, project_id: str, image_id: str, prompt: str, clear_
             ny = ((box[1] + box[3]) / 2) / h
             nw = (box[2] - box[0]) / w
             nh = (box[3] - box[1]) / h
-            
+
             ann_rows.append({
                 "id": str(uuid.uuid4()),
                 "image_id": image_id,
-                "class_name": prompt,
+                "class_name": "",
                 "bbox": json.dumps([float(nx), float(ny), float(nw), float(nh)]),
                 "source": "ai_prompt"
             })
-        
+
         db.execute_many(
             conn,
             "INSERT INTO annotations (id, image_id, class_name, bbox, source) "

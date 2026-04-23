@@ -1,19 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- Dark rounded background -->
-  <rect width="32" height="32" rx="7" fill="#07091c"/>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e8173e"/>
+      <stop offset="100%" stop-color="#9c0e26"/>
+    </linearGradient>
+  </defs>
 
-  <!-- Bounding-box corner marks -->
-  <polyline points="7,13 7,7 13,7"   fill="none" stroke="#818cf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <polyline points="19,7 25,7 25,13" fill="none" stroke="#818cf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <polyline points="25,19 25,25 19,25" fill="none" stroke="#818cf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <polyline points="13,25 7,25 7,19" fill="none" stroke="#818cf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Crimson gradient rounded background -->
+  <rect width="32" height="32" rx="7" fill="url(#bg)"/>
 
-  <!-- Centre target dot -->
-  <circle cx="16" cy="16" r="3" fill="#a5b4fc"/>
+  <!-- White bounding-box corner marks — computer vision / detection -->
+  <polyline points="6,12 6,6 12,6"   fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="20,6 26,6 26,12" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="26,20 26,26 20,26" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="12,26 6,26 6,20" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
 
-  <!-- Crosshair ticks -->
-  <line x1="16" y1="12" x2="16" y2="10.5" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="16" y1="20" x2="16" y2="21.5" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="12" y1="16" x2="10.5" y2="16" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="20" y1="16" x2="21.5" y2="16" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Pulse ring — AI targeting -->
+  <circle cx="16" cy="16" r="5.5" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.2"/>
+
+  <!-- Centre detection dot -->
+  <circle cx="16" cy="16" r="2.8" fill="white"/>
 </svg>

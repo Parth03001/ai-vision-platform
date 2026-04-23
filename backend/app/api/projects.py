@@ -5,20 +5,30 @@ from ..database import get_db
 from ..models.project import Project
 from ..models.annotation import Annotation
 from ..models.image import Image
+from ..models.user import User
 from ..schemas.base import ProjectCreate, ProjectResponse, ProjectUpdateRequest, ClassRenameRequest
 from ..config import settings
+from ..api.auth import get_current_user
+from ..api.deps import get_owned_project
 from typing import List, Dict
 import shutil
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
+
+
 @router.post("", response_model=ProjectResponse)
-async def create_project(data: ProjectCreate, db: AsyncSession = Depends(get_db)):
+async def create_project(
+    data: ProjectCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     project = Project(
         name=data.name,
         description=data.description,
-        classes=data.classes
+        classes=data.classes,
+        user_id=current_user.id,
     )
     db.add(project)
     await db.commit()
@@ -27,31 +37,32 @@ async def create_project(data: ProjectCreate, db: AsyncSession = Depends(get_db)
 
 
 @router.get("", response_model=List[ProjectResponse])
-async def list_projects(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Project))
+async def list_projects(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Project).where(Project.user_id == current_user.id))
     return result.scalars().all()
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)
-async def get_project(project_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return project
+async def get_project(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await get_owned_project(project_id, current_user, db)
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)
 async def update_project(
     project_id: str,
     data: ProjectUpdateRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Update project name, description, or classes list."""
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await get_owned_project(project_id, current_user, db)
 
     if data.name is not None:
         project.name = data.name
@@ -69,13 +80,11 @@ async def update_project(
 async def rename_class(
     project_id: str,
     data: ClassRenameRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Rename a class in project.classes AND in all existing annotations."""
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await get_owned_project(project_id, current_user, db)
 
     # Replace in the classes list
     updated_classes = [
@@ -109,9 +118,11 @@ async def rename_class(
 async def delete_class_annotations(
     project_id: str,
     class_name: str,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Delete all annotations that use a specific class_name in a project."""
+    await get_owned_project(project_id, current_user, db)
     image_ids_subq = (
         select(Image.id).where(Image.project_id == project_id).scalar_subquery()
     )
@@ -131,9 +142,11 @@ async def delete_class_annotations(
 @router.get("/{project_id}/class-stats")
 async def get_class_stats(
     project_id: str,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Dict[str, int]:
     """Return annotation count per class_name for a project."""
+    await get_owned_project(project_id, current_user, db)
     image_ids_subq = (
         select(Image.id).where(Image.project_id == project_id).scalar_subquery()
     )
@@ -149,6 +162,7 @@ async def get_class_stats(
 @router.delete("/{project_id}")
 async def delete_project(
     project_id: str,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -158,10 +172,7 @@ async def delete_project(
       - Training jobs (DB-level FK ON DELETE CASCADE)
       - Uploaded files on disk
     """
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await get_owned_project(project_id, current_user, db)
 
     # ORM delete — cascades to images → annotations automatically
     await db.delete(project)

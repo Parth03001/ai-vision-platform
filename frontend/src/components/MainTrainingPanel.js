@@ -4,13 +4,29 @@ import {
     LineChart, Line, XAxis, YAxis, CartesianGrid,
     Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
+import { Brain, X, RefreshCw, Download, Inbox, Square, ChevronLeft, Copy } from 'lucide-react';
 import { YOLO_MODEL_GROUPS, DEFAULT_MAIN_MODEL } from '../constants/yoloModels';
 import './MainTrainingPanel.css';
+import logoImg from '../logo.png';
 
-const API_URL      = "http://localhost:8000/api/v1";
+import { API_URL } from '../config';
 const POLL_INTERVAL = 3000;
 const MAX_PARALLEL  = 2;
 const NO_WORKER_TICKS = 15; // ~45 s
+
+// ── Split preview (mirrors backend _split_images logic) ──────────────
+function computeSplitPreview(n) {
+    if (n < 1) return null;
+    if (n < 5)  return { train: n, val: n, test: 0, mirror: true };
+    if (n < 10) {
+        const train = Math.max(1, Math.round(n * 0.8));
+        return { train, val: n - train, test: 0, mirror: false };
+    }
+    const train = Math.max(1, Math.round(n * 0.8));
+    const val   = Math.max(1, Math.round(n * 0.15));
+    const test  = n - train - val > 0 ? n - train - val : 0;
+    return { train, val, test, mirror: false };
+}
 
 // ── Helpers ────────────────────────────────────────────────────────
 const makeJob = (taskId, modelName) => ({
@@ -31,6 +47,7 @@ const STATUS_LABEL = {
     STARTED:   { label: 'Running',   cls: 'badge--running' },
     SUCCESS:   { label: 'Done',      cls: 'badge--done'    },
     FAILURE:   { label: 'Failed',    cls: 'badge--fail'    },
+    REVOKED:   { label: 'Stopped',   cls: 'badge--fail'    },
     NO_WORKER: { label: 'No Worker', cls: 'badge--fail'    },
 };
 
@@ -71,13 +88,13 @@ const LossChart = ({ history }) => {
             <p className="chart-title">Training Loss</p>
             <ResponsiveContainer width="100%" height={160}>
                 <LineChart data={history} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e2330" />
-                    <XAxis dataKey="epoch" tick={{ fill: '#475569', fontSize: 10 }}
-                        label={{ value: 'Epoch', position: 'insideBottom', fill: '#475569', fontSize: 10, offset: -1 }} />
-                    <YAxis tick={{ fill: '#475569', fontSize: 10 }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" />
+                    <XAxis dataKey="epoch" tick={{ fill: '#666666', fontSize: 10 }}
+                        label={{ value: 'Epoch', position: 'insideBottom', fill: '#666666', fontSize: 10, offset: -1 }} />
+                    <YAxis tick={{ fill: '#666666', fontSize: 10 }} />
                     <Tooltip content={<ChartTooltip />} />
-                    <Legend wrapperStyle={{ fontSize: 10, color: '#64748b' }} />
-                    {hasBox && <Line type="monotone" dataKey="box_loss" name="Box" stroke="#6366f1" dot={false} strokeWidth={1.5} />}
+                    <Legend wrapperStyle={{ fontSize: 10, color: '#666666' }} />
+                    {hasBox && <Line type="monotone" dataKey="box_loss" name="Box" stroke="#dc143c" dot={false} strokeWidth={1.5} />}
                     {hasCls && <Line type="monotone" dataKey="cls_loss" name="Cls" stroke="#f59e0b" dot={false} strokeWidth={1.5} />}
                     {hasDfl && <Line type="monotone" dataKey="dfl_loss" name="DFL" stroke="#ec4899" dot={false} strokeWidth={1.5} />}
                 </LineChart>
@@ -102,15 +119,40 @@ const MapChart = ({ history }) => {
             <p className="chart-title">Validation mAP</p>
             <ResponsiveContainer width="100%" height={160}>
                 <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e2330" />
-                    <XAxis dataKey="epoch" tick={{ fill: '#475569', fontSize: 10 }} />
-                    <YAxis domain={[0, 1]} tick={{ fill: '#475569', fontSize: 10 }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" />
+                    <XAxis dataKey="epoch" tick={{ fill: '#666666', fontSize: 10 }} />
+                    <YAxis domain={[0, 1]} tick={{ fill: '#666666', fontSize: 10 }} />
                     <Tooltip content={<ChartTooltip />} />
-                    <Legend wrapperStyle={{ fontSize: 10, color: '#64748b' }} />
+                    <Legend wrapperStyle={{ fontSize: 10, color: '#666666' }} />
                     {hasMap50 && <Line type="monotone" dataKey="mAP50" name="mAP50" stroke="#4ade80" dot={false} strokeWidth={1.5} />}
                     {hasMap95 && <Line type="monotone" dataKey="mAP50-95" name="mAP50-95" stroke="#38bdf8" dot={false} strokeWidth={1.5} />}
                 </LineChart>
             </ResponsiveContainer>
+        </div>
+    );
+};
+
+// ── PreprocessingProgress ──────────────────────────────────────────
+const PreprocessingProgress = ({ meta }) => {
+    if (!meta || meta.phase !== 'preprocessing') return null;
+    const { current = 0, total = 0, split = '', pct = 0 } = meta;
+    const splitLabel = { train: 'train', val: 'validation', test: 'test' }[split] || split;
+    return (
+        <div className="epoch-progress">
+            <div className="epoch-progress-header">
+                <span className="epoch-label">
+                    ⚡ Preprocessing
+                    {splitLabel && <span style={{ color: '#666666', fontWeight: 400 }}> — {splitLabel} set</span>}
+                </span>
+                <span className="epoch-eta" style={{ color: '#d97706' }}>{current} / {total} images</span>
+                <span className="epoch-pct">{pct}%</span>
+            </div>
+            <div className="epoch-bar">
+                <div className="epoch-bar-fill mtp-bar-fill" style={{ width: `${pct}%`, background: 'linear-gradient(90deg,#dc143c,#f87171)' }} />
+            </div>
+            <p style={{ fontSize: 10, color: '#666666', marginTop: 4 }}>
+                Applying CLAHE contrast enhancement to training images…
+            </p>
         </div>
     );
 };
@@ -149,9 +191,13 @@ const MainTrainingPanel = ({ project, onClose }) => {
 
     // Config state
     const [selectedModel, setSelectedModel]     = useState(DEFAULT_MAIN_MODEL);
-    const [epochs, setEpochs]                   = useState(100);
+    const [epochs, setEpochs]                   = useState(60);
     const [useSeedWeights, setUseSeedWeights]   = useState(true);
     const [imgsz, setImgsz]                     = useState(640);
+    const [batch, setBatch]                     = useState(-1);
+    const [preprocess, setPreprocess]           = useState(true);
+    const [clahePreview, setClahePreview]       = useState(null);
+    const [previewLoading, setPreviewLoading]   = useState(false);
 
     const logsEndRef = useRef(null);
     const pollRef    = useRef({});
@@ -173,6 +219,15 @@ const MainTrainingPanel = ({ project, onClose }) => {
             })
             .catch(() => {})
             .finally(() => setStatsLoading(false));
+    }, [project.id]);
+
+    // ── CLAHE preview ──────────────────────────────────────────────
+    const loadClahePreview = useCallback(() => {
+        setPreviewLoading(true);
+        axios.get(`${API_URL}/pipeline/clahe-preview/${project.id}`)
+            .then(res => setClahePreview(res.data))
+            .catch(() => setClahePreview(null))
+            .finally(() => setPreviewLoading(false));
     }, [project.id]);
 
     // ── Load persisted jobs from DB ────────────────────────────────
@@ -308,12 +363,25 @@ const MainTrainingPanel = ({ project, onClose }) => {
 
                     if (status === 'STARTED') {
                         pendingTicks = 0;
-                        const last = newLogs[newLogs.length - 1];
-                        if (last !== '⚙️  Main training in progress…')
-                            newLogs = [...newLogs, '⚙️  Main training in progress…'];
                         if (!startedPersisted) {
                             startedPersisted = true;
                             axios.patch(`${API_URL}/pipeline/jobs/${taskId}`, { status: 'started' }).catch(() => {});
+                        }
+                        const phase = meta?.phase;
+                        if (phase === 'preprocessing') {
+                            const pct = meta.pct ?? 0;
+                            const msg = `⚡  Preprocessing images… ${pct}% (${meta.current ?? 0}/${meta.total ?? 0})`;
+                            const last = newLogs[newLogs.length - 1];
+                            newLogs = last?.startsWith('⚡')
+                                ? [...newLogs.slice(0, -1), msg]
+                                : [...newLogs, '⚡  Starting CLAHE preprocessing…', msg];
+                        } else {
+                            const last = newLogs[newLogs.length - 1];
+                            const wasPreprocessing = last?.startsWith('⚡');
+                            if (wasPreprocessing)
+                                newLogs = [...newLogs, '✔  Preprocessing done — starting training…'];
+                            else if (last !== '⚙️  Main training in progress…')
+                                newLogs = [...newLogs, '⚙️  Main training in progress…'];
                         }
                         return { ...j, status: 'STARTED', logs: newLogs, epochMeta: meta || j.epochMeta };
                     }
@@ -373,6 +441,7 @@ const MainTrainingPanel = ({ project, onClose }) => {
             const res = await axios.post(`${API_URL}/pipeline/train-main/${next.projectId}`, {
                 model_name: next.modelName, epochs: next.epochs,
                 use_seed_weights: next.useSeedWeights, imgsz: next.imgsz,
+                preprocess: next.preprocess, batch: next.batch,
             });
             const taskId = res.data.task_id;
             const logs = [`📋  Task ID: ${taskId}`, '⏳  Waiting for worker…'];
@@ -395,6 +464,24 @@ const MainTrainingPanel = ({ project, onClose }) => {
         }
     }, [startPolling]);
 
+    // ── Stop running job ───────────────────────────────────────────
+    const handleStop = async () => {
+        const job = activeJob || jobs.find(j => j.status === 'PENDING' || j.status === 'STARTED');
+        if (!job?.taskId) return;
+        try {
+            await axios.post(`${API_URL}/pipeline/cancel/${job.taskId}`);
+        } catch { /* ignore network errors */ }
+        if (pollRef.current[job.taskId]) {
+            clearInterval(pollRef.current[job.taskId]);
+            delete pollRef.current[job.taskId];
+        }
+        setJobs(prev => prev.map(j =>
+            j.taskId === job.taskId
+                ? { ...j, status: 'REVOKED', logs: [...j.logs, '🛑  Stopped by user.'] }
+                : j
+        ));
+    };
+
     // ── Launch ─────────────────────────────────────────────────────
     const handleTrain = async () => {
         setLaunching(true);
@@ -409,7 +496,7 @@ const MainTrainingPanel = ({ project, onClose }) => {
             };
             queueRef.current.push({
                 jobId: placeholder.id, projectId: project.id,
-                modelName: selectedModel, epochs, useSeedWeights, imgsz,
+                modelName: selectedModel, epochs, useSeedWeights, imgsz, preprocess, batch,
             });
             setJobs(prev => [...prev, placeholder]);
             setActiveJobId(placeholder.id);
@@ -419,7 +506,7 @@ const MainTrainingPanel = ({ project, onClose }) => {
 
         try {
             const res = await axios.post(`${API_URL}/pipeline/train-main/${project.id}`, {
-                model_name: selectedModel, epochs, use_seed_weights: useSeedWeights, imgsz,
+                model_name: selectedModel, epochs, use_seed_weights: useSeedWeights, imgsz, preprocess, batch,
             });
             const taskId = res.data.task_id;
             const job = makeJob(taskId, selectedModel);
@@ -453,8 +540,8 @@ const MainTrainingPanel = ({ project, onClose }) => {
 
     const btnLabel = () => {
         if (launching) return 'Queuing…';
-        if (runningCount() >= MAX_PARALLEL) return '📥 Queue Job';
-        return '🎯 Start Main Training';
+        if (runningCount() >= MAX_PARALLEL) return <><Download size={16} /> Queue Job</>;
+        return <><Brain size={16} /> Start Main Training</>;
     };
 
     return (
@@ -464,13 +551,13 @@ const MainTrainingPanel = ({ project, onClose }) => {
                 {/* ── Header ── */}
                 <div className="mtp-header">
                     <div className="mtp-header-left">
-                        <span className="mtp-header-icon">🎯</span>
+                        <span className="mtp-header-icon"><Brain size={20} /></span>
                         <div>
                             <h2 className="mtp-title">Train Main Model</h2>
                             <p className="mtp-subtitle">{project.name}</p>
                         </div>
                     </div>
-                    <button className="mtp-close" onClick={onClose}>✕</button>
+                    <button className="mtp-close" onClick={onClose}><X size={18} /></button>
                 </div>
 
                 {/* ── Tabs ── */}
@@ -494,7 +581,7 @@ const MainTrainingPanel = ({ project, onClose }) => {
                             <section className="mtp-section">
                                 <div className="mtp-section-header">
                                     <span className="mtp-section-title">Dataset Overview</span>
-                                    <button className="mtp-refresh" onClick={loadData} title="Refresh">↻</button>
+                                    <button className="mtp-refresh" onClick={loadData} title="Refresh"><RefreshCw size={15} /></button>
                                 </div>
                                 {statsLoading ? (
                                     <div className="mtp-loading"><div className="mtp-spinner" /><span>Loading…</span></div>
@@ -532,6 +619,22 @@ const MainTrainingPanel = ({ project, onClose }) => {
                                         {useSeedWeights && !hasSeed && (
                                             <div className="mtp-warning">⚠️ Seed model required when "Fine-tune from seed" is on. Train seed model first, or disable fine-tuning.</div>
                                         )}
+                                        {/* ── Split preview ── */}
+                                        {(() => {
+                                            const sp = computeSplitPreview(stats.annotated_images);
+                                            if (!sp) return null;
+                                            return (
+                                                <div className="mtp-split-preview">
+                                                    <span className="mtp-split-preview-label">Expected split</span>
+                                                    <div className="mtp-split-badges">
+                                                        <span className="mtp-split-badge mtp-split-badge--train">Train&nbsp;{sp.train}</span>
+                                                        <span className="mtp-split-badge mtp-split-badge--val">Val&nbsp;{sp.val}{sp.mirror ? ' (mirrors train)' : ''}</span>
+                                                        {sp.test > 0 && <span className="mtp-split-badge mtp-split-badge--test">Test&nbsp;{sp.test}</span>}
+                                                        <span className="mtp-split-badge mtp-split-badge--total">Total&nbsp;{stats.annotated_images}</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                     </>
                                 ) : <p className="mtp-error-text">Failed to load stats.</p>}
                             </section>
@@ -596,17 +699,41 @@ const MainTrainingPanel = ({ project, onClose }) => {
 
                                 {/* Image size */}
                                 <div className="mtp-model-row">
-                                    <label className="mtp-model-label">Image Size</label>
+                                    <label className="mtp-model-label">
+                                        Image Size
+                                        <span className="mtp-model-hint"> (larger = slower, needs more VRAM)</span>
+                                    </label>
                                     <select
                                         className="mtp-model-select mtp-model-select--sm"
                                         value={imgsz}
                                         onChange={e => setImgsz(Number(e.target.value))}
                                     >
                                         {[320, 416, 512, 640, 768, 1024, 1280].map(s => (
-                                            <option key={s} value={s}>{s} × {s}{s === 640 ? ' (default)' : ''}</option>
+                                            <option key={s} value={s}>{s} × {s}{s === 640 ? ' (recommended)' : ''}</option>
                                         ))}
                                     </select>
                                 </div>
+
+                                {/* Batch size */}
+                                <div className="mtp-model-row">
+                                    <label className="mtp-model-label">
+                                        Batch Size
+                                        <span className="mtp-model-hint"> (Auto finds max that fits in VRAM)</span>
+                                    </label>
+                                    <select
+                                        className="mtp-model-select mtp-model-select--sm"
+                                        value={batch}
+                                        onChange={e => setBatch(Number(e.target.value))}
+                                    >
+                                        <option value={-1}>Auto (recommended)</option>
+                                        {[2, 4, 8, 16, 32].map(b => <option key={b} value={b}>{b}</option>)}
+                                    </select>
+                                </div>
+                                {imgsz > 640 && (
+                                    <div className="mtp-warning" style={{ marginTop: 6 }}>
+                                        ⚠️ Image size {imgsz} uses significantly more VRAM. With 20 GB GPU, keep batch ≤ 4 or use Auto batch. Recommended: 640 for safe training.
+                                    </div>
+                                )}
 
                                 {/* Static info */}
                                 <div className="mtp-config-rows" style={{ marginTop: 12 }}>
@@ -621,6 +748,74 @@ const MainTrainingPanel = ({ project, onClose }) => {
                                         </div>
                                     ))}
                                 </div>
+
+                                {/* ── CLAHE preprocessing toggle ── */}
+                                <div className="mtp-toggle-row" style={{ marginTop: 12 }}>
+                                    <label className="mtp-toggle-label">
+                                        <input
+                                            type="checkbox"
+                                            className="mtp-toggle-check"
+                                            checked={preprocess}
+                                            onChange={e => {
+                                                setPreprocess(e.target.checked);
+                                                if (e.target.checked && !clahePreview) loadClahePreview();
+                                            }}
+                                        />
+                                        <span className="mtp-toggle-slider" />
+                                        <span className="mtp-toggle-text">
+                                            CLAHE contrast preprocessing
+                                            <span className="mtp-toggle-hint"> (recommended for bright-feature inspection)</span>
+                                        </span>
+                                    </label>
+                                </div>
+
+                                {/* ── Before / After preview ── */}
+                                {preprocess && (
+                                    <div style={{ marginTop: 10 }}>
+                                        {clahePreview ? (
+                                            <>
+                                                <p style={{ fontSize: 11, color: '#666666', marginBottom: 6 }}>
+                                                    Preview — <em>{clahePreview.filename}</em>
+                                                </p>
+                                                <div style={{ display: 'flex', gap: 8 }}>
+                                                    <div style={{ flex: 1, textAlign: 'center' }}>
+                                                        <p style={{ fontSize: 10, color: '#666666', marginBottom: 4 }}>Original</p>
+                                                        <img src={clahePreview.original} alt="Original" style={{ width: '100%', borderRadius: 4, border: '1px solid #e5e5e5' }} />
+                                                    </div>
+                                                    <div style={{ flex: 1, textAlign: 'center' }}>
+                                                        <p style={{ fontSize: 10, color: '#16a34a', marginBottom: 4 }}>After CLAHE</p>
+                                                        <img src={clahePreview.enhanced} alt="CLAHE enhanced" style={{ width: '100%', borderRadius: 4, border: '1px solid #16a34a' }} />
+                                                    </div>
+                                                </div>
+                                            </>
+                                        ) : previewLoading ? (
+                                            <div className="mtp-info" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <div className="mtp-spinner" style={{ width: 12, height: 12 }} />
+                                                <span>Loading preview from dataset…</span>
+                                            </div>
+                                        ) : (
+                                            <div className="mtp-info" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <span>⚡</span>
+                                                <span>
+                                                    <strong>CLAHE active</strong> — contrast enhancement will be applied to all training images.
+                                                    {stats?.annotated_images > 0 && (
+                                                        <button
+                                                            onClick={loadClahePreview}
+                                                            style={{ marginLeft: 8, background: 'none', border: 'none', color: '#dc143c', cursor: 'pointer', fontSize: 11, textDecoration: 'underline', padding: 0 }}
+                                                        >
+                                                            Show preview
+                                                        </button>
+                                                    )}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                {!preprocess && (
+                                    <div className="mtp-warning" style={{ marginTop: 8 }}>
+                                        Preprocessing disabled — raw images will be used as-is. Detection of subtle brightness-based defects may be less accurate.
+                                    </div>
+                                )}
                             </section>
 
                             {/* Worker setup */}
@@ -632,7 +827,7 @@ const MainTrainingPanel = ({ project, onClose }) => {
                                         <code>celery -A app.tasks.celery_app:celery_app worker --loglevel=info</code>
                                         <button className="mtp-cmd-copy"
                                             onClick={() => navigator.clipboard.writeText('celery -A app.tasks.celery_app:celery_app worker --loglevel=info')}
-                                            title="Copy">⎘</button>
+                                            title="Copy"><Copy size={14} /></button>
                                     </div>
                                 </div>
                             </section>
@@ -643,7 +838,7 @@ const MainTrainingPanel = ({ project, onClose }) => {
                     {view === 'jobs' && (
                         jobs.length === 0 ? (
                             <div className="mtp-jobs-empty">
-                                <span className="mtp-jobs-empty-icon">📭</span>
+                                <span className="mtp-jobs-empty-icon"><Inbox size={32} /></span>
                                 <p>No main training jobs yet.</p>
                                 <p className="mtp-jobs-empty-sub">Click <strong>Start Main Training</strong> below.</p>
                             </div>
@@ -693,7 +888,7 @@ const MainTrainingPanel = ({ project, onClose }) => {
                                         {/* Model badge */}
                                         {activeJob.modelName && (
                                             <div className="mtp-job-model-tag">
-                                                <span className="mtp-job-model-icon">🧠</span>
+                                                <span className="mtp-job-model-icon"><Brain size={12} /></span>
                                                 {activeJob.modelName}
                                             </div>
                                         )}
@@ -711,9 +906,42 @@ const MainTrainingPanel = ({ project, onClose }) => {
                                             </div>
                                         )}
 
+                                        {/* ── Preprocessing Progress ── */}
+                                        {activeJob.status === 'STARTED' && (
+                                            <PreprocessingProgress meta={activeJob.epochMeta} />
+                                        )}
+
                                         {(activeJob.status === 'STARTED' || activeJob.status === 'SUCCESS') && (
                                             <EpochProgress meta={activeJob.epochMeta} />
                                         )}
+
+                                        {/* ── Dataset Split ── */}
+                                        {(() => {
+                                            const split = activeJob.epochMeta?.split || activeJob.result?.split;
+                                            if (!split) return null;
+                                            const total = (split.train || 0) + (split.val || 0) + (split.test || 0);
+                                            return (
+                                                <div className="mtp-split-row">
+                                                    <span className="mtp-split-label">Dataset split</span>
+                                                    <div className="mtp-split-badges">
+                                                        <span className="mtp-split-badge mtp-split-badge--train">
+                                                            Train&nbsp;{split.train}
+                                                        </span>
+                                                        <span className="mtp-split-badge mtp-split-badge--val">
+                                                            Val&nbsp;{split.val}
+                                                        </span>
+                                                        {split.test > 0 && (
+                                                            <span className="mtp-split-badge mtp-split-badge--test">
+                                                                Test&nbsp;{split.test}
+                                                            </span>
+                                                        )}
+                                                        <span className="mtp-split-badge mtp-split-badge--total">
+                                                            Total&nbsp;{total}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
 
                                         {activeJob.epochMeta?.history?.length > 0 && (
                                             <div className="charts-section">
@@ -766,7 +994,7 @@ const MainTrainingPanel = ({ project, onClose }) => {
                                                 <p className="mtp-worker-error">⚠️ Worker not detected. Start it, then try again.</p>
                                                 <div className="mtp-cmd-block">
                                                     <code>celery -A app.tasks.celery_app:celery_app worker --loglevel=info</code>
-                                                    <button className="mtp-cmd-copy" onClick={() => navigator.clipboard.writeText('celery -A app.tasks.celery_app:celery_app worker --loglevel=info')}>⎘</button>
+                                                    <button className="mtp-cmd-copy" onClick={() => navigator.clipboard.writeText('celery -A app.tasks.celery_app:celery_app worker --loglevel=info')}><Copy size={14} /></button>
                                                 </div>
                                             </div>
                                         )}
@@ -786,6 +1014,11 @@ const MainTrainingPanel = ({ project, onClose }) => {
                     >
                         {btnLabel()}
                     </button>
+                    {anyRunning && (
+                        <button className="mtp-stop-btn" onClick={handleStop} title="Stop training">
+                            <Square size={14} /> Stop
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

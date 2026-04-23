@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import './AutoAnnotatePanel.css';
+import { Sparkles, X, RefreshCw, Square, AlertTriangle, Check, ChevronLeft, Clock, Clipboard } from 'lucide-react';
+import logoImg from '../logo.png';
 
-const API_URL = "http://localhost:8000/api/v1";
-const IMG_URL  = "http://localhost:8000";
+import { API_URL, BASE_URL } from '../config';
+const IMG_URL  = BASE_URL;
 const POLL_INTERVAL  = 2500;
 const NO_WORKER_TICKS = 15; // ~37s
 
@@ -42,7 +44,7 @@ const ImageThumb = ({ img, checked, onChange }) => (
             />
         </div>
         <span className="aap-img-name">{img.filename}</span>
-        {checked && <span className="aap-img-check">✓</span>}
+        {checked && <span className="aap-img-check"><Check size={12} /></span>}
     </label>
 );
 
@@ -50,6 +52,8 @@ const ImageThumb = ({ img, checked, onChange }) => (
 const ProgressBar = ({ progress }) => {
     if (!progress || !progress.total) return null;
     const pct = Math.round((progress.current / progress.total) * 100);
+    const skipped  = progress.skipped_path  || 0;
+    const noDetect = progress.no_detection  || 0;
     return (
         <div className="aap-progress">
             <div className="aap-progress-header">
@@ -64,9 +68,17 @@ const ProgressBar = ({ progress }) => {
             <div className="aap-progress-bar">
                 <div className="aap-progress-fill" style={{ width: `${pct}%` }} />
             </div>
-            {progress.annotated_count > 0 && (
-                <p className="aap-progress-sub">✅ {progress.annotated_count} annotated so far</p>
-            )}
+            <div className="aap-progress-stats">
+                {(progress.annotated_count > 0) && (
+                    <span className="aap-stat aap-stat--ok">✅ {progress.annotated_count} annotated</span>
+                )}
+                {noDetect > 0 && (
+                    <span className="aap-stat aap-stat--warn">⬜ {noDetect} no detection</span>
+                )}
+                {skipped > 0 && (
+                    <span className="aap-stat aap-stat--err"><AlertTriangle size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }} /> {skipped} file not found</span>
+                )}
+            </div>
         </div>
     );
 };
@@ -227,15 +239,72 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
                 const res = await axios.get(`${API_URL}/pipeline/task-status/${taskId}`);
                 const { status, result, meta, error } = res.data;
 
+                // ── Compute NO_WORKER threshold outside setJobs ───────
+                let isNoWorker = false;
+                if (status === 'PENDING') {
+                    pendingTicks++;
+                    if (pendingTicks >= NO_WORKER_TICKS) isNoWorker = true;
+                } else if (status === 'STARTED') {
+                    pendingTicks = 0;
+                }
+
+                // ── All side effects BEFORE setJobs (pure updater) ────
+                // Stopping the interval and firing callbacks must not happen
+                // inside the setJobs functional updater — React may call it
+                // multiple times, which would double-trigger loadSetup() and
+                // cause the image grid to blank out unexpectedly.
+                if (status === 'SUCCESS' || status === 'FAILURE' || isNoWorker) {
+                    clearInterval(pollRef.current[taskId]);
+                    delete pollRef.current[taskId];
+                }
+
+                if (status === 'STARTED' && !startedPersisted) {
+                    startedPersisted = true;
+                    axios.patch(`${API_URL}/pipeline/jobs/${taskId}`, { status: 'started' }).catch(() => {});
+                }
+
+                if (status === 'SUCCESS') {
+                    const j = jobsRef.current.find(j => j.taskId === taskId);
+                    if (j) {
+                        const successLogs = [...j.logs, `✅  Done! ${result?.annotated_count ?? 0} image(s) annotated.`];
+                        const finalProgress = { current: j.imageCount, total: j.imageCount, annotated_count: result?.annotated_count };
+                        axios.patch(`${API_URL}/pipeline/jobs/${taskId}`, {
+                            status: 'success',
+                            result_meta: {
+                                logs: successLogs, result, progress: finalProgress,
+                                imageCount: j.imageCount,
+                                startedAt: j.startedAt instanceof Date ? j.startedAt.toISOString() : j.startedAt,
+                            },
+                            finished_at: new Date().toISOString(),
+                        }).catch(() => {});
+                    }
+                    loadSetup();
+                    if (onAnnotationsUpdated) onAnnotationsUpdated();
+                }
+
+                if (status === 'FAILURE') {
+                    const j = jobsRef.current.find(j => j.taskId === taskId);
+                    if (j) {
+                        const failLogs = [...j.logs, `❌  Failed: ${error || 'Unknown error'}`];
+                        axios.patch(`${API_URL}/pipeline/jobs/${taskId}`, {
+                            status: 'failure',
+                            result_meta: {
+                                logs: failLogs, error: error || 'Unknown error',
+                                imageCount: j.imageCount,
+                                startedAt: j.startedAt instanceof Date ? j.startedAt.toISOString() : j.startedAt,
+                            },
+                            finished_at: new Date().toISOString(),
+                        }).catch(() => {});
+                    }
+                }
+
+                // ── Pure state update — no side effects inside ────────
                 setJobs(prev => prev.map(j => {
                     if (j.taskId !== taskId) return j;
                     let newLogs = [...j.logs];
 
                     if (status === 'PENDING') {
-                        pendingTicks++;
-                        if (pendingTicks >= NO_WORKER_TICKS) {
-                            clearInterval(pollRef.current[taskId]);
-                            delete pollRef.current[taskId];
+                        if (isNoWorker) {
                             newLogs = [...newLogs, '❌  No worker detected after 37s.', '👉  Start Celery worker first.'];
                             return { ...j, status: 'NO_WORKER', logs: newLogs };
                         }
@@ -246,55 +315,23 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
                     }
 
                     if (status === 'STARTED') {
-                        pendingTicks = 0;
                         const progress = meta || j.progress;
                         if (meta?.current_image) {
                             const entry = `🔍  [${meta.current}/${meta.total}] ${meta.current_image}`;
                             const last = newLogs[newLogs.length - 1];
                             if (last !== entry) newLogs = [...newLogs, entry];
                         }
-                        if (!startedPersisted) {
-                            startedPersisted = true;
-                            axios.patch(`${API_URL}/pipeline/jobs/${taskId}`, { status: 'started' }).catch(() => {});
-                        }
                         return { ...j, status: 'STARTED', progress, logs: newLogs };
                     }
 
                     if (status === 'SUCCESS') {
-                        clearInterval(pollRef.current[taskId]);
-                        delete pollRef.current[taskId];
-                        newLogs = [...newLogs,
-                            `✅  Done! ${result?.annotated_count ?? 0} image(s) annotated.`];
+                        newLogs = [...newLogs, `✅  Done! ${result?.annotated_count ?? 0} image(s) annotated.`];
                         const finalProgress = { current: j.imageCount, total: j.imageCount, annotated_count: result?.annotated_count };
-                        loadSetup();
-                        if (onAnnotationsUpdated) onAnnotationsUpdated();
-                        // Persist final state
-                        axios.patch(`${API_URL}/pipeline/jobs/${taskId}`, {
-                            status: 'success',
-                            result_meta: {
-                                logs: newLogs, result, progress: finalProgress,
-                                imageCount: j.imageCount,
-                                startedAt: j.startedAt instanceof Date ? j.startedAt.toISOString() : j.startedAt,
-                            },
-                            finished_at: new Date().toISOString(),
-                        }).catch(() => {});
                         return { ...j, status: 'SUCCESS', result, logs: newLogs, progress: finalProgress };
                     }
 
                     if (status === 'FAILURE') {
-                        clearInterval(pollRef.current[taskId]);
-                        delete pollRef.current[taskId];
                         newLogs = [...newLogs, `❌  Failed: ${error || 'Unknown error'}`];
-                        // Persist final state
-                        axios.patch(`${API_URL}/pipeline/jobs/${taskId}`, {
-                            status: 'failure',
-                            result_meta: {
-                                logs: newLogs, error: error || 'Unknown error',
-                                imageCount: j.imageCount,
-                                startedAt: j.startedAt instanceof Date ? j.startedAt.toISOString() : j.startedAt,
-                            },
-                            finished_at: new Date().toISOString(),
-                        }).catch(() => {});
                         return { ...j, status: 'FAILURE', error, logs: newLogs };
                     }
 
@@ -303,6 +340,24 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
             } catch { /* ignore */ }
         }, POLL_INTERVAL);
     }, [loadSetup, onAnnotationsUpdated]);
+
+    // ── Stop running job ─────────────────────────────────────────
+    const handleStop = async () => {
+        const job = jobs.find(j => j.status === 'PENDING' || j.status === 'STARTED');
+        if (!job?.taskId) return;
+        try {
+            await axios.post(`${API_URL}/pipeline/cancel/${job.taskId}`);
+        } catch { /* ignore */ }
+        if (pollRef.current[job.taskId]) {
+            clearInterval(pollRef.current[job.taskId]);
+            delete pollRef.current[job.taskId];
+        }
+        setJobs(prev => prev.map(j =>
+            j.taskId === job.taskId
+                ? { ...j, status: 'FAILURE', logs: [...j.logs, '🛑  Stopped by user.'] }
+                : j
+        ));
+    };
 
     // ── Launch job ────────────────────────────────────────────
     const handleStart = async () => {
@@ -353,13 +408,13 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
                 {/* ── Header ── */}
                 <div className="aap-header">
                     <div className="aap-header-left">
-                        <span className="aap-header-icon">✨</span>
+                        <span className="aap-header-icon"><Sparkles size={20} /></span>
                         <div>
                             <h2 className="aap-title">Auto-Annotate</h2>
                             <p className="aap-subtitle">{project.name}</p>
                         </div>
                     </div>
-                    <button className="aap-close" onClick={onClose}>✕</button>
+                    <button className="aap-close" onClick={onClose}><X size={18} /></button>
                 </div>
 
                 {/* ── Tabs ── */}
@@ -409,7 +464,7 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
                                         <button className="aap-select-btn" onClick={selectAll}>All</button>
                                         <button className="aap-select-btn" onClick={selectNone}>None</button>
                                         <span className="aap-selected-count">{selectedIds.size} selected</span>
-                                        <button className="aap-refresh-btn" onClick={loadSetup} title="Refresh">↻</button>
+                                        <button className="aap-refresh-btn" onClick={loadSetup} title="Refresh"><RefreshCw size={16} /></button>
                                     </div>
                                 </div>
 
@@ -417,7 +472,7 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
                                     <div className="aap-loading"><div className="aap-spinner" /><span>Loading images…</span></div>
                                 ) : pendingImages.length === 0 ? (
                                     <div className="aap-empty">
-                                        <span>🎉</span>
+                                        <span><Sparkles size={32} /></span>
                                         <p>All images are already annotated!</p>
                                     </div>
                                 ) : (
@@ -460,7 +515,7 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
                                 <p className="aap-section-title">Worker Required</p>
                                 <div className="aap-cmd-block">
                                     <code>celery -A app.tasks.celery_app:celery_app worker --loglevel=info</code>
-                                    <button className="aap-cmd-copy" onClick={() => navigator.clipboard.writeText('celery -A app.tasks.celery_app:celery_app worker --loglevel=info')}>⎘</button>
+                                    <button className="aap-cmd-copy" onClick={() => navigator.clipboard.writeText('celery -A app.tasks.celery_app:celery_app worker --loglevel=info')}><Clipboard size={14} /></button>
                                 </div>
                             </section>
                         </>
@@ -470,7 +525,7 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
                     {view === 'jobs' && (
                         jobs.length === 0 ? (
                             <div className="aap-jobs-empty">
-                                <span>📭</span>
+                                <span><X size={32} /></span>
                                 <p>No jobs yet. Select images in Setup and click Start.</p>
                             </div>
                         ) : (
@@ -534,12 +589,33 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
                                         {/* Result */}
                                         {activeJob.status === 'SUCCESS' && activeJob.result && (
                                             <div className="aap-result-card">
-                                                <span className="aap-result-icon">✅</span>
-                                                <div>
+                                                <span className="aap-result-icon"><Check size={22} /></span>
+                                                <div style={{ flex: 1 }}>
                                                     <p className="aap-result-title">
                                                         {activeJob.result.annotated_count} / {activeJob.result.total} images annotated
                                                     </p>
-                                                    <p className="aap-result-sub">Annotations saved. Reload workspace to see them.</p>
+                                                    <div className="aap-result-breakdown">
+                                                        {(activeJob.result.no_detection > 0) && (
+                                                            <span className="aap-stat aap-stat--warn">
+                                                                ⬜ {activeJob.result.no_detection} no detection
+                                                            </span>
+                                                        )}
+                                                        {(activeJob.result.skipped_path > 0) && (
+                                                            <span className="aap-stat aap-stat--err">
+                                                                <AlertTriangle size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }} /> {activeJob.result.skipped_path} file not found
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {activeJob.result.skipped_path > 0 && (
+                                                        <p className="aap-result-hint">
+                                                            Files not found means images are missing from disk. Check your upload folder.
+                                                        </p>
+                                                    )}
+                                                    {activeJob.result.no_detection > 0 && activeJob.result.skipped_path === 0 && (
+                                                        <p className="aap-result-hint">
+                                                            Images with no detection need more training data. Annotate more examples and retrain the seed model.
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
                                         )}
@@ -547,10 +623,10 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
                                         {/* No worker */}
                                         {activeJob.status === 'NO_WORKER' && (
                                             <div className="aap-worker-err">
-                                                <p>⚠️ Worker not found. Start it then try again:</p>
+                                                <p>Worker not found. Start it then try again:</p>
                                                 <div className="aap-cmd-block" style={{ marginTop: 8 }}>
                                                     <code>celery -A app.tasks.celery_app:celery_app worker --loglevel=info</code>
-                                                    <button className="aap-cmd-copy" onClick={() => navigator.clipboard.writeText('celery -A app.tasks.celery_app:celery_app worker --loglevel=info')}>⎘</button>
+                                                    <button className="aap-cmd-copy" onClick={() => navigator.clipboard.writeText('celery -A app.tasks.celery_app:celery_app worker --loglevel=info')}><Clipboard size={14} /></button>
                                                 </div>
                                             </div>
                                         )}
@@ -566,12 +642,17 @@ const AutoAnnotatePanel = ({ project, onClose, onAnnotationsUpdated }) => {
                     {view === 'setup' ? (
                         <button className="aap-start-btn" onClick={handleStart} disabled={!canStart}>
                             {launching
-                                ? '⏳ Starting…'
-                                : `✨ Auto-Annotate ${selectedIds.size > 0 ? `${selectedIds.size} Image${selectedIds.size !== 1 ? 's' : ''}` : ''}`}
+                                ? 'Starting…'
+                                : <><Sparkles size={16} /> Auto-Annotate {selectedIds.size > 0 ? `${selectedIds.size} Image${selectedIds.size !== 1 ? 's' : ''}` : ''}</>}
                         </button>
                     ) : (
                         <button className="aap-start-btn aap-start-btn--secondary" onClick={() => { setView('setup'); loadSetup(); }}>
-                            ← Back to Setup
+                            <ChevronLeft size={16} /> Back to Setup
+                        </button>
+                    )}
+                    {anyRunning && (
+                        <button className="aap-stop-btn" onClick={handleStop} title="Stop annotation">
+                            <Square size={14} /> Stop
                         </button>
                     )}
                 </div>
