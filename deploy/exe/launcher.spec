@@ -77,7 +77,12 @@ for pkg in [
 # output directories (runs/, weights/, checkpoints/) that might be present in
 # the working tree at build time.
 _SKIP_DIRS  = {"data", "__pycache__", "runs", "weights", "checkpoints", ".git"}
-_SKIP_EXTS  = {".pt", ".pth", ".onnx", ".bin", ".npy", ".npz", ".pkl"}
+_SKIP_EXTS  = {
+    # model weights
+    ".pt", ".pth", ".onnx", ".bin", ".npy", ".npz", ".pkl",
+    # uploaded / training images — created at runtime, never bundled
+    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".tif",
+}
 
 for item in BACKEND.iterdir():
     if item.name in _SKIP_DIRS:
