@@ -132,21 +132,34 @@ python -m PyInstaller launcher.spec --noconfirm ^
 if errorlevel 1 ( echo [ERROR] PyInstaller failed. & exit /b 1 )
 
 :: --------------------------------------------------------------------------
+:: Step 7 — Package into distributable ZIP
+:: --------------------------------------------------------------------------
+echo.
+echo [7/7] Creating distribution ZIP...
+call "%DEPLOY_DIR%package.bat" "%PYI_DIST%\AIVision" "%PYI_DIST%"
+if errorlevel 1 (
+    echo [WARNING] ZIP packaging failed, but the EXE build succeeded.
+    echo           Run package.bat manually to create the ZIP.
+)
+
+:: --------------------------------------------------------------------------
 :: Done
 :: --------------------------------------------------------------------------
 echo.
 echo ============================================================
 echo  BUILD COMPLETE
-echo  Output: D:\AIVision-App\AIVision\aivision.exe
+echo  EXE    : %PYI_DIST%\AIVision\aivision.exe
+echo  ZIP    : %PYI_DIST%\AIVision-win64-*.zip
 echo ============================================================
 echo.
-echo To run:
-echo   cd D:\AIVision-App\AIVision
+echo To test locally:
+echo   cd %PYI_DIST%\AIVision
 echo   aivision.exe
 echo.
+echo To distribute: send the AIVision-win64-*.zip file.
 echo On first launch, the app will:
 echo   - Initialize the PostgreSQL database
 echo   - Start all services
-echo   - Open your browser at http://localhost:8000
+echo   - Open the browser at http://localhost:8000
 
 endlocal
