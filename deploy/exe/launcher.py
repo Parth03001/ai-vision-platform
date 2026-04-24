@@ -244,4 +244,31 @@ def _shutdown(pg: PostgresManager, redis: RedisManager, celery: CeleryWorker | N
 
 
 if __name__ == "__main__":
+    # --- Celery Worker Entry Point ---
+    # When running as a compiled EXE, the Celery worker is started by re-executing
+    # the EXE with '-m celery' arguments. We must intercept this to avoid
+    # starting the full launcher (DB, Redis, etc.) again in the worker process.
+    if len(sys.argv) > 2 and sys.argv[1] == "-m" and sys.argv[2] == "celery":
+        try:
+            import celery.__main__
+        except ImportError:
+            print("[ERROR] Celery not found in bundle.")
+            sys.exit(1)
+
+        # Ensure the backend directory is in sys.path so the Celery app can be imported
+        if hasattr(sys, "_MEIPASS"):
+            backend_path = Path(sys._MEIPASS) / "backend"
+        else:
+            # Fallback for local development runs
+            backend_path = Path(__file__).resolve().parent.parent.parent / "backend"
+        
+        if backend_path.exists() and str(backend_path) not in sys.path:
+            sys.path.insert(0, str(backend_path))
+            
+        # The celery main entry point typically reads from sys.argv.
+        # We shift sys.argv so that it looks like ['celery', 'worker', ...]
+        sys.argv = sys.argv[2:]
+        sys.exit(celery.__main__.main())
+    # ---------------------------------
+
     main()
