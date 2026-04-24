@@ -11,7 +11,7 @@ import ReviewPanel from './ReviewPanel';
 import VideoPanel from './VideoPanel';
 import ActiveLearningPanel from './ActiveLearningPanel';
 import './AnnotationWorkspace.css';
-import { Sparkles, AlertTriangle, X, Upload, Image as ImageIcon, Check, ArrowLeft, ArrowRight, Brain, Rocket, Eye, Target, Tag, Package, Film } from 'lucide-react';
+import { Sparkles, AlertTriangle, X, Upload, Image as ImageIcon, Check, ArrowLeft, ArrowRight, Brain, Rocket, Eye, Target, Tag, Package, Film, Trash2 } from 'lucide-react';
 
 import { API_URL } from '../config';
 
@@ -320,6 +320,29 @@ Do you want to proceed?`;
             if (nextPending) handleImageClick(nextPending);
         } catch {
             setError('Failed to mark image as empty.');
+        }
+    };
+
+    const handleDeleteImage = async (imageToDelete, e) => {
+        if (e) e.stopPropagation();
+        if (!window.confirm(`Delete "${imageToDelete.filename}"? This will also remove all its annotations.`)) return;
+        try {
+            await axios.delete(`${API_URL}/images/${imageToDelete.id}`);
+            const remaining = images.filter(img => img.id !== imageToDelete.id);
+            setImages(remaining);
+            if (currentImage?.id === imageToDelete.id) {
+                const idx = images.findIndex(img => img.id === imageToDelete.id);
+                const next = remaining[idx] || remaining[idx - 1] || null;
+                if (next) {
+                    handleImageClick(next);
+                } else {
+                    setCurrentImage(null);
+                    setAnnotations([]);
+                }
+            }
+            showStatus(`Deleted "${imageToDelete.filename}"`);
+        } catch {
+            setError('Failed to delete image.');
         }
     };
 
@@ -681,6 +704,13 @@ Do you want to proceed?`;
                                     <span className={`image-item-status status-${img.status}`}>
                                         {img.status}
                                     </span>
+                                    <button
+                                        className="image-item-delete"
+                                        title="Delete image"
+                                        onClick={(e) => handleDeleteImage(img, e)}
+                                    >
+                                        <Trash2 size={12} />
+                                    </button>
                                 </div>
                                 );
                             })}
@@ -726,6 +756,13 @@ Do you want to proceed?`;
                                     <Check size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} /> No Objects
                                 </button>
                             )}
+                            <button
+                                className="btn-delete-image"
+                                onClick={(e) => handleDeleteImage(currentImage, e)}
+                                title="Delete this image and all its annotations"
+                            >
+                                <Trash2 size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} /> Delete Image
+                            </button>
                         </div>
 
                         {/* ── AI Prompt Bar (Below Toolbar) ── */}
@@ -999,6 +1036,13 @@ Do you want to proceed?`;
                     images={images}
                     filterImageIds={reviewFilterIds}
                     onClose={() => { setShowReviewPanel(false); setReviewFilterIds(null); }}
+                    onImageDeleted={(deletedId) => {
+                        setImages(prev => prev.filter(img => img.id !== deletedId));
+                        if (currentImage?.id === deletedId) {
+                            setCurrentImage(null);
+                            setAnnotations([]);
+                        }
+                    }}
                     onAnnotationsUpdated={() => {
                         // Refresh images and reload current image annotations after review
                         axios.get(`${API_URL}/images/project/${project.id}`)

@@ -80,6 +80,31 @@ async def list_project_images(
     return result.scalars().all()
 
 
+@router.delete("/{image_id}", status_code=204)
+async def delete_image(
+    image_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    image = await get_owned_image(image_id, current_user, db)
+
+    # Remove the file from disk (same two-candidate pattern as video deletion)
+    rel = image.filepath.lstrip("/")
+    for candidate in [
+        settings.upload_dir.resolve().parent / rel,
+        settings.upload_dir.resolve() / rel,
+    ]:
+        try:
+            if candidate.exists():
+                candidate.unlink()
+                break
+        except Exception:
+            pass
+
+    await db.delete(image)
+    await db.commit()
+
+
 @router.patch("/{image_id}/mark-empty", response_model=ImageResponse)
 async def mark_image_empty(
     image_id: str,

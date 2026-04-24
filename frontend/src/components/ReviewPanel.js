@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Stage, Layer, Rect, Text, Image as KonvaImg, Group } from 'react-konva';
 import useImage from 'use-image';
 import './ReviewPanel.css';
-import { Check, X, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Check, X, Sparkles, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import logoImg from '../logo.png';
 
 import { API_URL, BASE_URL } from '../config';
@@ -58,7 +58,7 @@ const ClassPicker = ({ classes, onConfirm, onCancel }) => {
     );
 };
 
-export default function ReviewPanel({ project, images, onClose, onAnnotationsUpdated, filterImageIds }) {
+export default function ReviewPanel({ project, images, onClose, onAnnotationsUpdated, onImageDeleted, filterImageIds }) {
     // If filterImageIds is provided (e.g. from AL suggestions), show only those images.
     // Otherwise show the normal annotated/annotating review queue.
     const reviewImages = filterImageIds?.size > 0
@@ -192,6 +192,27 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
             // silent
         }
     }, [annotations, markReviewed, showStatus]);
+
+    const handleDeleteImage = async (imgToDelete, e) => {
+        if (e) e.stopPropagation();
+        if (!window.confirm(`Delete "${imgToDelete.filename}"? This will also remove all its annotations.`)) return;
+        try {
+            await axios.delete(`${API_URL}/images/${imgToDelete.id}`);
+            onImageDeleted?.(imgToDelete.id);
+            const newList = reviewImages.filter(i => i.id !== imgToDelete.id);
+            if (newList.length === 0) {
+                onAnnotationsUpdated?.();
+                onClose();
+            } else {
+                const nextIdx = Math.min(currentIdx, newList.length - 1);
+                setCurrentIdx(nextIdx);
+                setAnnotations([]);
+            }
+            showStatus(`Deleted "${imgToDelete.filename}"`);
+        } catch {
+            showStatus('Failed to delete image.');
+        }
+    };
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -344,6 +365,13 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
                                 }}
                                 title={img.filename}
                             >
+                                <button
+                                    className="rp-strip-delete"
+                                    title="Delete image"
+                                    onClick={(e) => handleDeleteImage(img, e)}
+                                >
+                                    <Trash2 size={11} />
+                                </button>
                                 <div className="rp-strip-thumb">
                                     <img
                                         src={`${BASE_URL}${img.filepath}`}
@@ -384,6 +412,13 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
                                                 <span className="rp-unverified-tag">{autoCount} unverified</span>
                                             )}
                                         </span>
+                                        <button
+                                            className="rp-delete-image-btn"
+                                            onClick={(e) => handleDeleteImage(currentImage, e)}
+                                            title="Delete this image and all its annotations"
+                                        >
+                                            <Trash2 size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} /> Delete Image
+                                        </button>
                                     </div>
 
                                     <div className="rp-stage-wrap" ref={stageWrapRef}>
