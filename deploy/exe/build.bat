@@ -126,6 +126,26 @@ set "PYI_DIST=D:\AIVision-App"
 echo      PyInstaller temp : %PYI_WORK%
 echo      Final output     : %PYI_DIST%\AIVision\aivision.exe
 
+:: Kill any running aivision.exe so PyInstaller can overwrite it.
+:: taskkill returns 128 when the process is not found — that is fine.
+echo      Stopping any running aivision.exe...
+taskkill /f /im aivision.exe >nul 2>&1
+
+:: Give Windows a moment to fully release file handles after the kill.
+timeout /t 3 /nobreak >nul
+
+:: Manually remove the old dist folder so PyInstaller never has to rmtree
+:: a directory that Windows Defender or AV may still have open.
+if exist "%PYI_DIST%\AIVision" (
+    echo      Removing previous build at %PYI_DIST%\AIVision...
+    rd /s /q "%PYI_DIST%\AIVision"
+    if errorlevel 1 (
+        echo [ERROR] Could not remove %PYI_DIST%\AIVision — close any open
+        echo         files or Explorer windows inside that folder and retry.
+        exit /b 1
+    )
+)
+
 python -m PyInstaller launcher.spec --noconfirm ^
     --workpath "%PYI_WORK%" ^
     --distpath "%PYI_DIST%"
