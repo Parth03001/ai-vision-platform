@@ -587,7 +587,16 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
                                                     </button>
                                                 </div>
                                             ) : (
-                                                <span className="rp-verified-tag">verified</span>
+                                                <div className="rp-ann-row-actions">
+                                                    <span className="rp-verified-tag">verified</span>
+                                                    <button
+                                                        className="rp-row-btn remove"
+                                                        title="Delete this annotation"
+                                                        onClick={() => handleRejectAnnotation(ann.id)}
+                                                    >
+                                                        <Trash2 size={13} />
+                                                    </button>
+                                                </div>
                                             )}
                                         </div>
                                     );
