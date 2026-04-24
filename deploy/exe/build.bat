@@ -146,6 +146,13 @@ if exist "%PYI_DIST%\AIVision" (
     )
 )
 
+:: Wipe the PyInstaller work/cache directory so no stale model files (.pt,
+:: images, etc.) from a previous build are re-bundled into the new EXE.
+if exist "%PYI_WORK%" (
+    echo      Clearing PyInstaller cache at %PYI_WORK%...
+    rd /s /q "%PYI_WORK%"
+)
+
 python -m PyInstaller launcher.spec --noconfirm ^
     --workpath "%PYI_WORK%" ^
     --distpath "%PYI_DIST%"
