@@ -997,3 +997,21 @@
   min-width: 36px;
   text-align: right;
 }
+
+/* ── Weights status strip (below model selector) ── */
+.tp-weights-strip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.tp-weights-strip--ok      { background: rgba(22,163,74,0.08);  color: #16a34a; border: 1px solid rgba(22,163,74,0.2); }
+.tp-weights-strip--partial { background: rgba(217,119,6,0.08);  color: #b45309; border: 1px solid rgba(217,119,6,0.2); }
+.tp-weights-dot   { font-size: 9px; }
+.tp-weights-summary { font-weight: 600; }
+.tp-weights-ok   { color: #16a34a; }
+.tp-weights-warn { color: #b45309; font-weight: 400; }

@@ -18,7 +18,7 @@ echo [DEBUG] REPO_ROOT  = %REPO_ROOT%
 :: Step 1 - Check Python
 :: --------------------------------------------------------------------------
 echo.
-echo [1/6] Checking Python...
+echo [1/8] Checking Python...
 python --version >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] Python not found. Install Python 3.11 from https://www.python.org/downloads/
@@ -30,7 +30,7 @@ python --version
 :: Step 2 - Check Node
 :: --------------------------------------------------------------------------
 echo.
-echo [2/6] Checking Node.js / npm...
+echo [2/8] Checking Node.js / npm...
 node --version >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] Node.js not found. Install from https://nodejs.org/
@@ -43,7 +43,7 @@ call npm --version
 :: Step 3 - Build React frontend
 :: --------------------------------------------------------------------------
 echo.
-echo [3/6] Building React frontend...
+echo [3/8] Building React frontend...
 cd /d "%REPO_ROOT%\frontend"
 
 if not exist node_modules (
@@ -62,7 +62,7 @@ echo      Frontend built successfully.
 :: Step 4 - Install Python build dependencies
 :: --------------------------------------------------------------------------
 echo.
-echo [4/6] Installing Python build dependencies...
+echo [4/8] Installing Python build dependencies...
 cd /d "%REPO_ROOT%"
 pip install pyinstaller ^
     fastapi uvicorn[standard] sqlalchemy[asyncio] asyncpg psycopg2-binary ^
@@ -76,7 +76,7 @@ if errorlevel 1 ( echo [ERROR] pip install failed. & exit /b 1 )
 :: Step 5 - Check for portable binaries
 :: --------------------------------------------------------------------------
 echo.
-echo [5/6] Checking portable service binaries...
+echo [5/8] Checking portable service binaries...
 
 :: Always cd back to DEPLOY_DIR before file checks so relative logic is correct
 cd /d "%DEPLOY_DIR%"
@@ -114,7 +114,7 @@ if exist "resources\redis\redis-server.exe" (
 :: Step 6 - Run PyInstaller
 :: --------------------------------------------------------------------------
 echo.
-echo [6/6] Running PyInstaller...
+echo [6/8] Running PyInstaller...
 cd /d "%DEPLOY_DIR%"
 
 :: Build on D: drive to avoid C: space issues and Defender file locks.
@@ -159,10 +159,33 @@ python -m PyInstaller launcher.spec --noconfirm ^
 if errorlevel 1 ( echo [ERROR] PyInstaller failed. & exit /b 1 )
 
 :: --------------------------------------------------------------------------
-:: Step 7 — Package into distributable ZIP
+:: Step 7 — Pre-download YOLO base weights into the dist folder
 :: --------------------------------------------------------------------------
 echo.
-echo [7/7] Creating distribution ZIP...
+echo [7/8] Pre-downloading YOLO base weights for offline deployment...
+echo       Target: %PYI_DIST%\AIVision\data\yolo_weights
+echo       This downloads ~600 MB - 1.5 GB and may take several minutes.
+echo.
+
+set "YOLO_WEIGHTS_DIR=%PYI_DIST%\AIVision\data\yolo_weights"
+if not exist "%YOLO_WEIGHTS_DIR%" mkdir "%YOLO_WEIGHTS_DIR%"
+
+:: Run the download script from the repo root so the import paths are correct
+cd /d "%REPO_ROOT%"
+python backend\scripts\download_yolo_weights.py
+if errorlevel 1 (
+    echo [WARNING] Some YOLO weights could not be downloaded.
+    echo          Partially-offline bundle: models whose weights are missing
+    echo          will require internet on first use.
+) else (
+    echo      All available YOLO weights downloaded successfully.
+)
+
+:: --------------------------------------------------------------------------
+:: Step 8 — Package into distributable ZIP
+:: --------------------------------------------------------------------------
+echo.
+echo [8/8] Creating distribution ZIP...
 call "%DEPLOY_DIR%package.bat" "%PYI_DIST%\AIVision" "%PYI_DIST%"
 if errorlevel 1 (
     echo [WARNING] ZIP packaging failed, but the EXE build succeeded.
@@ -175,8 +198,9 @@ if errorlevel 1 (
 echo.
 echo ============================================================
 echo  BUILD COMPLETE
-echo  EXE    : %PYI_DIST%\AIVision\aivision.exe
-echo  ZIP    : %PYI_DIST%\AIVision-win64-*.zip
+echo  EXE     : %PYI_DIST%\AIVision\aivision.exe
+echo  Weights : %PYI_DIST%\AIVision\data\yolo_weights\
+echo  ZIP     : %PYI_DIST%\AIVision-win64-*.zip
 echo ============================================================
 echo.
 echo To test locally:
