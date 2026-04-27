@@ -17,13 +17,16 @@ import { API_URL } from '../config';
 
 // Reports naturalWidth/naturalHeight once loaded so the parent can use the
 // browser-corrected dimensions (EXIF orientation, etc.) for scale calculation.
-const KonvaImage = ({ src, onLoad }) => {
-    const [image] = useImage(src, 'anonymous');
+// Calls onError when the image cannot be fetched or decoded (e.g. corrupt frame).
+const KonvaImage = ({ src, onLoad, onError }) => {
+    const [image, status] = useImage(src, 'anonymous');
     useEffect(() => {
-        if (image && onLoad) {
+        if (status === 'loaded' && image && onLoad) {
             onLoad(image.naturalWidth || image.width, image.naturalHeight || image.height);
+        } else if (status === 'failed' && onError) {
+            onError();
         }
-    }, [image, onLoad]);
+    }, [image, status, onLoad, onError]);
     return <Image image={image} />;
 };
 
@@ -129,6 +132,7 @@ const AnnotationWorkspace = ({ project, onProjectUpdated }) => {
     // Actual displayed dimensions from the loaded image (may differ from backend
     // stored values when EXIF orientation rotates the image 90°/270°).
     const [loadedImageSize, setLoadedImageSize] = useState(null);
+    const [imageLoadFailed, setImageLoadFailed] = useState(false);
     const [isDrawing, setIsDrawing] = useState(false);
     const [newAnnotation, setNewAnnotation] = useState(null);
     const [pendingAnnotation, setPendingAnnotation] = useState(null); // bbox waiting for class
@@ -385,7 +389,8 @@ Do you want to proceed?`;
 
     const handleImageClick = (image) => {
         setCurrentImage(image);
-        setLoadedImageSize(null); // reset until new image loads
+        setLoadedImageSize(null);
+        setImageLoadFailed(false);
         setPendingAnnotation(null);
         setNewAnnotation(null);
         axios.get(`${API_URL}/annotations/image/${image.id}`)
@@ -805,20 +810,28 @@ Do you want to proceed?`;
                         </div>
 
                         <div className="canvas-center" ref={canvasCenterRef}>
+                            {imageLoadFailed && (
+                                <div className="canvas-img-error">
+                                    <AlertTriangle size={22} />
+                                    <span>Frame could not be loaded — the file may be corrupt.</span>
+                                </div>
+                            )}
                             <Stage
                                 className="canvas-stage"
                                 width={stageW}
                                 height={stageH}
                                 scaleX={scale}
                                 scaleY={scale}
-                                onMouseDown={handleMouseDown}
-                                onMouseMove={handleMouseMove}
-                                onMouseUp={handleMouseUp}
+                                onMouseDown={!imageLoadFailed ? handleMouseDown : undefined}
+                                onMouseMove={!imageLoadFailed ? handleMouseMove : undefined}
+                                onMouseUp={!imageLoadFailed ? handleMouseUp : undefined}
+                                style={imageLoadFailed ? { opacity: 0.15, pointerEvents: 'none' } : undefined}
                             >
                                 <Layer>
                                     <KonvaImage
                                         src={`${API_URL.replace("/api/v1", "")}${currentImage.filepath}`}
                                         onLoad={handleImageLoad}
+                                        onError={() => setImageLoadFailed(true)}
                                     />
                                     {annotations.map(ann => {
                                         const bx = (ann.bbox[0] - ann.bbox[2] / 2) * imgW;

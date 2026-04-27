@@ -1018,3 +1018,22 @@
   color: #d97706;
   margin-left: 4px;
 }
+
+/* ── Corrupt-frame error overlay ── */
+.canvas-img-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(220, 20, 60, 0.08);
+  border: 2px dashed #dc143c;
+  border-radius: 6px;
+  color: #dc143c;
+  font-size: 13px;
+  font-weight: 500;
+  pointer-events: none;
+  z-index: 10;
+}

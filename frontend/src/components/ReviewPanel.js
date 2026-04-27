@@ -8,13 +8,15 @@ import logoImg from '../logo.png';
 
 import { API_URL, BASE_URL } from '../config';
 
-const CanvasImage = ({ src, onLoad }) => {
-    const [img] = useImage(src, 'anonymous');
+const CanvasImage = ({ src, onLoad, onError }) => {
+    const [img, status] = useImage(src, 'anonymous');
     useEffect(() => {
-        if (img && onLoad) {
+        if (status === 'loaded' && img && onLoad) {
             onLoad(img.naturalWidth || img.width, img.naturalHeight || img.height);
+        } else if (status === 'failed' && onError) {
+            onError();
         }
-    }, [img, onLoad]);
+    }, [img, status, onLoad, onError]);
     return <KonvaImg image={img} />;
 };
 
@@ -77,6 +79,7 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
     const [statusMsg, setStatusMsg] = useState(null);
     // Actual displayed dimensions after EXIF orientation is applied by the browser
     const [loadedImageSize, setLoadedImageSize] = useState(null);
+    const [imageLoadFailed, setImageLoadFailed] = useState(false);
     const stageWrapRef = useRef(null);
 
     const currentImage = reviewImages[currentIdx] || null;
@@ -113,9 +116,10 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
         setLoadedImageSize({ width: w, height: h });
     }, []);
 
-    // Reset loaded size when navigating to a different image
+    // Reset loaded size and error flag when navigating to a different image
     useEffect(() => {
         setLoadedImageSize(null);
+        setImageLoadFailed(false);
     }, [currentImage?.id]);
 
     // Load annotations when current image changes
@@ -422,20 +426,29 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
                                     </div>
 
                                     <div className="rp-stage-wrap" ref={stageWrapRef}>
+                                        {imageLoadFailed && (
+                                            <div className="rp-img-error">
+                                                <span className="rp-img-error-icon">⚠</span>
+                                                <span>Frame could not be loaded — the file may be corrupt.</span>
+                                            </div>
+                                        )}
                                         <Stage
                                             width={stageW}
                                             height={stageH}
                                             scaleX={scale}
                                             scaleY={scale}
-                                            style={{ cursor: 'crosshair' }}
-                                            onMouseDown={handleMouseDown}
-                                            onMouseMove={handleMouseMove}
-                                            onMouseUp={handleMouseUp}
+                                            style={{ cursor: imageLoadFailed ? 'default' : 'crosshair',
+                                                     opacity: imageLoadFailed ? 0.15 : 1,
+                                                     pointerEvents: imageLoadFailed ? 'none' : 'auto' }}
+                                            onMouseDown={!imageLoadFailed ? handleMouseDown : undefined}
+                                            onMouseMove={!imageLoadFailed ? handleMouseMove : undefined}
+                                            onMouseUp={!imageLoadFailed ? handleMouseUp : undefined}
                                         >
                                             <Layer>
                                                 <CanvasImage
                                                     src={`${BASE_URL}${currentImage.filepath}`}
                                                     onLoad={handleImageLoad}
+                                                    onError={() => setImageLoadFailed(true)}
                                                 />
 
                                                 {annotations.map(ann => {

@@ -742,3 +742,26 @@
   white-space: nowrap;
 }
 .rp-class-custom button:hover { background: #b8102e; }
+
+/* ── Corrupt-frame error overlay ── */
+.rp-img-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(220, 20, 60, 0.08);
+  border: 2px dashed #dc143c;
+  border-radius: 6px;
+  color: #dc143c;
+  font-size: 13px;
+  font-weight: 500;
+  pointer-events: none;
+  z-index: 10;
+}
+.rp-img-error-icon {
+  font-size: 28px;
+  line-height: 1;
+}
