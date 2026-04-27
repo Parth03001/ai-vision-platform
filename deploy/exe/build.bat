@@ -160,11 +160,21 @@ if errorlevel 1 ( echo [ERROR] PyInstaller failed. & exit /b 1 )
 
 :: --------------------------------------------------------------------------
 :: Step 7 — Pre-download YOLO base weights into the dist folder
+::
+:: NOTE: package.bat EXCLUDES .pt files from the ZIP to keep the archive
+:: lean.  These weights are downloaded here so the local build is ready for
+:: immediate testing on this machine.  The launcher also downloads any
+:: missing weights automatically on first launch (requires internet).
+::
+:: To ship weights offline: copy the data\yolo_weights\ folder out of the ZIP
+:: separately and instruct end-users to place it next to aivision.exe before
+:: their first run.
 :: --------------------------------------------------------------------------
 echo.
-echo [7/8] Pre-downloading YOLO base weights for offline deployment...
-echo       Target: %PYI_DIST%\AIVision\data\yolo_weights
-echo       This downloads ~600 MB - 1.5 GB and may take several minutes.
+echo [7/8] Downloading YOLO base weights for local testing...
+echo       Target  : %PYI_DIST%\AIVision\data\yolo_weights
+echo       Note    : .pt files are excluded from the distribution ZIP.
+echo                 Weights are downloaded at first launch on end-user machines.
 echo.
 
 set "YOLO_WEIGHTS_DIR=%PYI_DIST%\AIVision\data\yolo_weights"
@@ -175,10 +185,9 @@ cd /d "%REPO_ROOT%"
 python backend\scripts\download_yolo_weights.py
 if errorlevel 1 (
     echo [WARNING] Some YOLO weights could not be downloaded.
-    echo          Partially-offline bundle: models whose weights are missing
-    echo          will require internet on first use.
+    echo          The launcher will retry at first launch (requires internet).
 ) else (
-    echo      All available YOLO weights downloaded successfully.
+    echo      All available YOLO weights downloaded to local dist folder.
 )
 
 :: --------------------------------------------------------------------------
