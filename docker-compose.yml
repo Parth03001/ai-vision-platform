@@ -80,6 +80,8 @@ services:
       # File storage
       UPLOAD_DIR: /app/data/uploads
       MODEL_DIR: /app/data/models
+      # Pre-downloaded YOLO weights (baked into the image — NOT volume-mounted)
+      YOLO_WEIGHTS_DIR: /app/data/yolo_weights
       # HuggingFace model paths (mount from host or set to download location)
       GROUNDING_DINO_PATH: ${GROUNDING_DINO_PATH:-/app/data/models/grounding-dino-base}
       SAM2_PATH: ${SAM2_PATH:-/app/data/models/sam2-hiera-large}
@@ -140,6 +142,8 @@ services:
       # File storage
       UPLOAD_DIR: /app/data/uploads
       MODEL_DIR: /app/data/models
+      # Pre-downloaded YOLO weights (baked into the image — NOT volume-mounted)
+      YOLO_WEIGHTS_DIR: /app/data/yolo_weights
       GROUNDING_DINO_PATH: ${GROUNDING_DINO_PATH:-/app/data/models/grounding-dino-base}
       SAM2_PATH: ${SAM2_PATH:-/app/data/models/sam2-hiera-large}
       SIGLIP_PATH: ${SIGLIP_PATH:-/app/data/models/siglip-so400m-patch14-384}

@@ -29,7 +29,8 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    YOLO_WEIGHTS_DIR=/app/data/yolo_weights
 
 # Install system libs for OpenCV / psycopg2
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -60,7 +61,15 @@ COPY backend/ ./
 COPY --from=frontend-builder /app/frontend/build ./frontend/build
 
 # ── Runtime directories ───────────────────────────────────────────────────────
-RUN mkdir -p /app/data/uploads /app/data/models /app/logs
+RUN mkdir -p /app/data/uploads /app/data/models /app/data/yolo_weights /app/logs
+
+# ── Pre-download YOLO base weights for offline deployment ─────────────────────
+# All weights land in /app/data/yolo_weights inside this image layer.
+# This directory is NOT volume-mounted in docker-compose so the weights are
+# always available even when the system has no internet connection.
+# Failures for unreleased model families are non-fatal (script exits 0).
+COPY backend/scripts/download_yolo_weights.py /tmp/download_yolo_weights.py
+RUN python /tmp/download_yolo_weights.py && rm /tmp/download_yolo_weights.py
 
 EXPOSE 8000
 
