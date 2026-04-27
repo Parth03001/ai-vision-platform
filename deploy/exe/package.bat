@@ -36,8 +36,10 @@ set "ZIP_PATH=%OUTPUT_DIR%\%ZIP_NAME%"
 echo.
 echo Source folder : %DIST_DIR%
 echo Output ZIP    : %ZIP_PATH%
-echo Excluded      : *.pt  *.png  (large binary / image files)
-echo Note          : YOLO weights are downloaded at first launch by the app.
+echo.
+echo Included  : data\yolo_weights\*.pt  (pre-downloaded YOLO base weights — offline ready)
+echo Excluded  : data\models\**\*.pt     (user-trained project models — runtime data)
+echo Excluded  : **\*.png                (test images and previews)
 echo.
 
 :: Remove stale zip if present
@@ -47,39 +49,50 @@ if exist "%ZIP_PATH%" (
 )
 
 :: --------------------------------------------------------------------------
-:: Step 1 — Create filtered ZIP (excludes .pt and .png)
+:: Step 1 — Create filtered ZIP
 ::
-:: Compress-Archive does not support per-file exclusions, so we use the
-:: .NET ZipFile API directly via inline PowerShell.
+:: Compress-Archive has no exclusion support, so we use the .NET ZipFile
+:: API directly in inline PowerShell.
 ::
-:: Why skip .pt and .png?
-::   .pt  — YOLO base weights (up to ~1.5 GB) are downloaded at first launch
-::           by the embedded launcher; shipping them in the ZIP bloats it
-::           unnecessarily.  Trained project weights (data/models/) are user
-::           data and should not be redistributed.
-::   .png  — Test images, screenshots and annotation previews; not needed in
-::            the distributable bundle.
+:: Exclusion rules (path-aware, not just extension):
+::
+::   data\models\**\*.pt   — trained project weights produced at runtime.
+::                           These are user data and change every training run;
+::                           bundling them would include stale or wrong models.
+::
+::   **\*.png              — test images, annotation previews, screenshots.
+::                           Not needed in the distributable bundle.
+::
+:: KEPT in ZIP:
+::   data\yolo_weights\*.pt — pre-downloaded YOLO base weights (YOLOv8–v26,
+::                            nano to XL).  Required for offline training —
+::                            the deployment machine has NO internet access.
 :: --------------------------------------------------------------------------
-echo [1/2] Compressing AIVision folder (excluding .pt and .png files)...
+echo [1/2] Compressing AIVision folder...
 
 powershell -NoProfile -Command ^
     "$src = '%DIST_DIR%'; $dst = '%ZIP_PATH%';" ^
     "$folderName = Split-Path $src -Leaf;" ^
-    "$skip = @('.pt', '.png');" ^
     "Add-Type -AssemblyName 'System.IO.Compression.FileSystem';" ^
-    "$mode   = [System.IO.Compression.ZipArchiveMode]::Create;" ^
-    "$level  = [System.IO.Compression.CompressionLevel]::Optimal;" ^
-    "$zip    = [System.IO.Compression.ZipFile]::Open($dst, $mode);" ^
-    "$files  = Get-ChildItem -Path $src -Recurse -File ^| Where-Object { $skip -notcontains $_.Extension.ToLower() };" ^
-    "$count  = 0;" ^
+    "$mode  = [System.IO.Compression.ZipArchiveMode]::Create;" ^
+    "$level = [System.IO.Compression.CompressionLevel]::Optimal;" ^
+    "$zip   = [System.IO.Compression.ZipFile]::Open($dst, $mode);" ^
+    "$skipped = 0; $count = 0;" ^
+    "$files = Get-ChildItem -Path $src -Recurse -File;" ^
     "foreach ($f in $files) {" ^
-    "    $entry = $folderName + '\\' + $f.FullName.Substring($src.Length + 1);" ^
+    "    $rel = $f.FullName.Substring($src.Length + 1);" ^
+    "    $ext = $f.Extension.ToLower();" ^
+    "    $skip = $false;" ^
+    "    if ($ext -eq '.png') { $skip = $true }" ^
+    "    elseif ($ext -eq '.pt' -and $rel -like 'data\models\*') { $skip = $true }" ^
+    "    if ($skip) { $skipped++; continue }" ^
+    "    $entry = $folderName + '\\' + $rel;" ^
     "    [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $f.FullName, $entry, $level) | Out-Null;" ^
     "    $count++;" ^
-    "    if ($count %% 500 -eq 0) { Write-Host \"  ... $count files added\" }" ^
+    "    if ($count %% 200 -eq 0) { Write-Host \"  ... $count files added ($skipped skipped)\" }" ^
     "};" ^
     "$zip.Dispose();" ^
-    "Write-Host \"  Total files packaged: $count\""
+    "Write-Host \"  Done: $count files packaged, $skipped files skipped\""
 
 if errorlevel 1 (
     echo.
@@ -102,9 +115,10 @@ echo.
 echo ============================================================
 echo  PACKAGE READY
 echo.
-echo  File    : %ZIP_PATH%
-echo  Size    : ~%ZIP_MB% MB
-echo  Skipped : *.pt and *.png  (not included in ZIP)
+echo  File     : %ZIP_PATH%
+echo  Size     : ~%ZIP_MB% MB
+echo  Included : data\yolo_weights\*.pt  (YOLO base weights — offline ready)
+echo  Skipped  : data\models\**\*.pt and *.png
 echo ============================================================
 echo.
 echo ---- Instructions for the end user --------------------------
@@ -122,20 +136,18 @@ echo            (or right-click > Run as administrator if UAC blocks it)
 echo.
 echo       d. Wait ~30-60 seconds on first launch
 echo            The app initialises the database automatically.
-echo            YOLO model weights are downloaded on first use
-echo            (internet required for first training run).
 echo.
 echo       e. A browser tab opens at http://localhost:8000
 echo.
 echo  NO installation required — no Python, no Node, no database setup.
-echo  Everything is bundled inside the ZIP.
+echo  NO internet required — YOLO base weights are bundled in the ZIP.
+echo  Everything needed for offline training is included.
 echo.
 echo  System requirements for the end user:
 echo    - Windows 10/11 (64-bit)
 echo    - NVIDIA GPU with CUDA 12.x drivers (for AI inference)
 echo    - 8 GB RAM minimum (16 GB recommended)
 echo    - 10 GB free disk space for the app + AI model weights
-echo    - Internet connection on first launch (to download YOLO weights)
 echo -------------------------------------------------------------
 
 endlocal
