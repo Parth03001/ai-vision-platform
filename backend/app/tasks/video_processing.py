@@ -46,6 +46,46 @@ def _resolve_video_path(filepath: str) -> Path | None:
     return None
 
 
+def _write_frame(frame, path: Path) -> bool:
+    """
+    Write a video frame to *path* as a JPEG, returning True only when the
+    resulting file is a valid, non-empty image.
+
+    Strategy:
+      1. Try cv2.imwrite (fast, in-process).
+      2. On failure, retry once with Pillow (handles edge-case codecs).
+      3. Verify the written file is >= 1 KB — a valid JPEG is never smaller.
+      4. Delete and return False if the file is missing or too small.
+    """
+    # -- attempt 1: OpenCV --
+    try:
+        ok = cv2.imwrite(str(path), frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
+    except Exception:
+        ok = False
+
+    # -- attempt 2: Pillow fallback --
+    if not ok:
+        try:
+            from PIL import Image as PILImage  # noqa: PLC0415
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            PILImage.fromarray(rgb).save(str(path), "JPEG", quality=90, optimize=True)
+            ok = True
+        except Exception as exc:
+            logger.warning(f"[video] PIL fallback failed for {path.name}: {exc}")
+            ok = False
+
+    # -- verify file integrity (minimum 1 KB for any real JPEG) --
+    if ok and path.exists() and path.stat().st_size >= 1024:
+        return True
+
+    # clean up any zero-byte or partial file left on disk
+    try:
+        path.unlink(missing_ok=True)
+    except Exception:
+        pass
+    return False
+
+
 @celery_app.task(bind=True, name="extract_video_frames")
 def extract_video_frames(
     self,
@@ -144,6 +184,7 @@ def extract_video_frames(
         # ── 6. Extract frames ─────────────────────────────────────────────────
         frame_idx = 0
         saved_count = 0
+        skipped_count = 0
         effective_max = max_frames if max_frames > 0 else float("inf")
 
         while True:
@@ -155,16 +196,36 @@ def extract_video_frames(
                 if saved_count >= effective_max:
                     break
 
+                # ── Validate frame ─────────────────────────────────────────
+                # cap.read() can return ret=True but a None or zero-size frame
+                # during codec glitches, damaged segments, or buffer flushes at
+                # the very start/end of some container formats.
+                if frame is None or frame.size == 0:
+                    logger.warning(f"[video] frame {frame_idx} is empty — skipping")
+                    skipped_count += 1
+                    frame_idx += 1
+                    continue
+
                 frame_uuid = str(uuid.uuid4())
                 frame_filename = f"{frame_uuid}.jpg"
                 frame_path = frames_dir / frame_filename
-                cv2.imwrite(str(frame_path), frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
 
-                # Relative URL path served by the /uploads static mount
+                # ── Write with integrity check ─────────────────────────────
+                # _write_frame tries cv2 then PIL, verifies the file is >= 1 KB,
+                # and cleans up any partial file on failure.
+                if not _write_frame(frame, frame_path):
+                    logger.warning(
+                        f"[video] frame {frame_idx} could not be written as a "
+                        f"valid JPEG — skipping (no DB row inserted)"
+                    )
+                    skipped_count += 1
+                    frame_idx += 1
+                    continue
+
+                # ── Insert DB row only after confirming file is valid ──────
                 rel_path = (
                     f"/uploads/{project_id}/video_frames/{video_id}/{frame_filename}"
                 )
-                # Human-readable display name: stem_frame_000042.jpg
                 display_name = f"{stem}_frame_{frame_idx:06d}.jpg"
 
                 with db.get_session() as conn:
@@ -196,12 +257,19 @@ def extract_video_frames(
                             {"cnt": saved_count, "vid": video_id},
                         )
                     logger.info(
-                        f"[video] {video_id}: extracted {saved_count} frames so far…"
+                        f"[video] {video_id}: {saved_count} saved, "
+                        f"{skipped_count} skipped so far…"
                     )
 
             frame_idx += 1
 
         cap.release()
+
+        if skipped_count:
+            logger.warning(
+                f"[video] {skipped_count} corrupted/unwritable frames were skipped "
+                f"and have no DB entry."
+            )
 
         # ── 7. Final status update ────────────────────────────────────────────
         with db.get_session() as conn:
@@ -214,9 +282,14 @@ def extract_video_frames(
             )
 
         logger.info(
-            f"[video] Done. {saved_count} frames extracted from {original_filename}."
+            f"[video] Done. {saved_count} frames saved, {skipped_count} skipped "
+            f"from {original_filename}."
         )
-        return {"status": "done", "frames_extracted": saved_count}
+        return {
+            "status": "done",
+            "frames_extracted": saved_count,
+            "frames_skipped": skipped_count,
+        }
 
     except Exception as exc:
         logger.exception(f"[video] extract_video_frames failed for {video_id}: {exc}")

@@ -72,18 +72,34 @@ for pkg in [
         pass
 
 # Backend source — copy only app code, never data/ (models & uploads are
-# created fresh at runtime and must never be bundled into the EXE)
+# created fresh at runtime and must never be bundled into the EXE).
+# Also skip any model-weight files (.pt / .pth / .onnx / .bin) and training
+# output directories (runs/, weights/, checkpoints/) that might be present in
+# the working tree at build time.
+_SKIP_DIRS  = {"data", "__pycache__", "runs", "weights", "checkpoints", ".git"}
+_SKIP_EXTS  = {
+    # model weights
+    ".pt", ".pth", ".onnx", ".bin", ".npy", ".npz", ".pkl",
+    # uploaded / training images — created at runtime, never bundled
+    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".tif",
+}
+
 for item in BACKEND.iterdir():
-    if item.name in ("data", "__pycache__", ".env", ".env.example"):
+    if item.name in _SKIP_DIRS:
         continue
     if item.is_dir():
-        # Recursively add subdirectory, skipping any __pycache__ inside
         for f in item.rglob("*"):
-            if f.is_file() and "__pycache__" not in f.parts:
-                rel_dest = "backend/" + str(f.relative_to(BACKEND).parent).replace("\\", "/")
-                datas += [(str(f), rel_dest)]
+            if not f.is_file():
+                continue
+            if any(part in _SKIP_DIRS for part in f.parts):
+                continue
+            if f.suffix.lower() in _SKIP_EXTS:
+                continue
+            rel_dest = "backend/" + str(f.relative_to(BACKEND).parent).replace("\\", "/")
+            datas += [(str(f), rel_dest)]
     elif item.is_file():
-        datas += [(str(item), "backend")]
+        if item.suffix.lower() not in _SKIP_EXTS:
+            datas += [(str(item), "backend")]
 
 # React build artefacts
 if FRONTEND.exists():
@@ -177,7 +193,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["tkinter", "matplotlib", "notebook", "IPython"],
+    excludes=["tkinter", "notebook", "IPython"],
     noarchive=False,
 )
 

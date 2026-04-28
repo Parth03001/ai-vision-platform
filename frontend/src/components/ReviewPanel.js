@@ -3,18 +3,20 @@ import axios from 'axios';
 import { Stage, Layer, Rect, Text, Image as KonvaImg, Group } from 'react-konva';
 import useImage from 'use-image';
 import './ReviewPanel.css';
-import { Check, X, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Check, X, Sparkles, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import logoImg from '../logo.png';
 
 import { API_URL, BASE_URL } from '../config';
 
-const CanvasImage = ({ src, onLoad }) => {
-    const [img] = useImage(src, 'anonymous');
+const CanvasImage = ({ src, onLoad, onError }) => {
+    const [img, status] = useImage(src, 'anonymous');
     useEffect(() => {
-        if (img && onLoad) {
+        if (status === 'loaded' && img && onLoad) {
             onLoad(img.naturalWidth || img.width, img.naturalHeight || img.height);
+        } else if (status === 'failed' && onError) {
+            onError();
         }
-    }, [img, onLoad]);
+    }, [img, status, onLoad, onError]);
     return <KonvaImg image={img} />;
 };
 
@@ -58,7 +60,7 @@ const ClassPicker = ({ classes, onConfirm, onCancel }) => {
     );
 };
 
-export default function ReviewPanel({ project, images, onClose, onAnnotationsUpdated, filterImageIds }) {
+export default function ReviewPanel({ project, images, onClose, onAnnotationsUpdated, onImageDeleted, filterImageIds }) {
     // If filterImageIds is provided (e.g. from AL suggestions), show only those images.
     // Otherwise show the normal annotated/annotating review queue.
     const reviewImages = filterImageIds?.size > 0
@@ -77,6 +79,7 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
     const [statusMsg, setStatusMsg] = useState(null);
     // Actual displayed dimensions after EXIF orientation is applied by the browser
     const [loadedImageSize, setLoadedImageSize] = useState(null);
+    const [imageLoadFailed, setImageLoadFailed] = useState(false);
     const stageWrapRef = useRef(null);
 
     const currentImage = reviewImages[currentIdx] || null;
@@ -113,9 +116,10 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
         setLoadedImageSize({ width: w, height: h });
     }, []);
 
-    // Reset loaded size when navigating to a different image
+    // Reset loaded size and error flag when navigating to a different image
     useEffect(() => {
         setLoadedImageSize(null);
+        setImageLoadFailed(false);
     }, [currentImage?.id]);
 
     // Load annotations when current image changes
@@ -192,6 +196,27 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
             // silent
         }
     }, [annotations, markReviewed, showStatus]);
+
+    const handleDeleteImage = async (imgToDelete, e) => {
+        if (e) e.stopPropagation();
+        if (!window.confirm(`Delete "${imgToDelete.filename}"? This will also remove all its annotations.`)) return;
+        try {
+            await axios.delete(`${API_URL}/images/${imgToDelete.id}`);
+            onImageDeleted?.(imgToDelete.id);
+            const newList = reviewImages.filter(i => i.id !== imgToDelete.id);
+            if (newList.length === 0) {
+                onAnnotationsUpdated?.();
+                onClose();
+            } else {
+                const nextIdx = Math.min(currentIdx, newList.length - 1);
+                setCurrentIdx(nextIdx);
+                setAnnotations([]);
+            }
+            showStatus(`Deleted "${imgToDelete.filename}"`);
+        } catch {
+            showStatus('Failed to delete image.');
+        }
+    };
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -344,6 +369,13 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
                                 }}
                                 title={img.filename}
                             >
+                                <button
+                                    className="rp-strip-delete"
+                                    title="Delete image"
+                                    onClick={(e) => handleDeleteImage(img, e)}
+                                >
+                                    <Trash2 size={11} />
+                                </button>
                                 <div className="rp-strip-thumb">
                                     <img
                                         src={`${BASE_URL}${img.filepath}`}
@@ -384,23 +416,39 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
                                                 <span className="rp-unverified-tag">{autoCount} unverified</span>
                                             )}
                                         </span>
+                                        <button
+                                            className="rp-delete-image-btn"
+                                            onClick={(e) => handleDeleteImage(currentImage, e)}
+                                            title="Delete this image and all its annotations"
+                                        >
+                                            <Trash2 size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} /> Delete Image
+                                        </button>
                                     </div>
 
                                     <div className="rp-stage-wrap" ref={stageWrapRef}>
+                                        {imageLoadFailed && (
+                                            <div className="rp-img-error">
+                                                <span className="rp-img-error-icon">⚠</span>
+                                                <span>Frame could not be loaded — the file may be corrupt.</span>
+                                            </div>
+                                        )}
                                         <Stage
                                             width={stageW}
                                             height={stageH}
                                             scaleX={scale}
                                             scaleY={scale}
-                                            style={{ cursor: 'crosshair' }}
-                                            onMouseDown={handleMouseDown}
-                                            onMouseMove={handleMouseMove}
-                                            onMouseUp={handleMouseUp}
+                                            style={{ cursor: imageLoadFailed ? 'default' : 'crosshair',
+                                                     opacity: imageLoadFailed ? 0.15 : 1,
+                                                     pointerEvents: imageLoadFailed ? 'none' : 'auto' }}
+                                            onMouseDown={!imageLoadFailed ? handleMouseDown : undefined}
+                                            onMouseMove={!imageLoadFailed ? handleMouseMove : undefined}
+                                            onMouseUp={!imageLoadFailed ? handleMouseUp : undefined}
                                         >
                                             <Layer>
                                                 <CanvasImage
                                                     src={`${BASE_URL}${currentImage.filepath}`}
                                                     onLoad={handleImageLoad}
+                                                    onError={() => setImageLoadFailed(true)}
                                                 />
 
                                                 {annotations.map(ann => {
@@ -552,7 +600,16 @@ export default function ReviewPanel({ project, images, onClose, onAnnotationsUpd
                                                     </button>
                                                 </div>
                                             ) : (
-                                                <span className="rp-verified-tag">verified</span>
+                                                <div className="rp-ann-row-actions">
+                                                    <span className="rp-verified-tag">verified</span>
+                                                    <button
+                                                        className="rp-row-btn remove"
+                                                        title="Delete this annotation"
+                                                        onClick={() => handleRejectAnnotation(ann.id)}
+                                                    >
+                                                        <Trash2 size={13} />
+                                                    </button>
+                                                </div>
                                             )}
                                         </div>
                                     );

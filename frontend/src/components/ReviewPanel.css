@@ -142,6 +142,7 @@
 }
 
 .rp-strip-item {
+  position: relative;
   border-radius: 6px;
   padding: 4px;
   cursor: pointer;
@@ -155,6 +156,29 @@
 }
 .rp-strip-item.done .rp-strip-thumb {
   opacity: 0.45;
+}
+
+.rp-strip-delete {
+  display: none;
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 2;
+  background: rgba(220, 20, 60, 0.85);
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  padding: 2px 3px;
+  line-height: 1;
+}
+.rp-strip-item:hover .rp-strip-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rp-strip-delete:hover {
+  background: #dc143c;
 }
 
 .rp-strip-thumb {
@@ -252,6 +276,24 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.rp-delete-image-btn {
+  margin-left: auto;
+  background: rgba(220, 20, 60, 0.07);
+  border: 1px solid rgba(220, 20, 60, 0.25);
+  border-radius: 6px;
+  color: #dc143c;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+.rp-delete-image-btn:hover {
+  background: rgba(220, 20, 60, 0.15);
+  border-color: #dc143c;
 }
 .rp-canvas-dims {
   font-size: 10px;
@@ -700,3 +742,26 @@
   white-space: nowrap;
 }
 .rp-class-custom button:hover { background: #b8102e; }
+
+/* ── Corrupt-frame error overlay ── */
+.rp-img-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(220, 20, 60, 0.08);
+  border: 2px dashed #dc143c;
+  border-radius: 6px;
+  color: #dc143c;
+  font-size: 13px;
+  font-weight: 500;
+  pointer-events: none;
+  z-index: 10;
+}
+.rp-img-error-icon {
+  font-size: 28px;
+  line-height: 1;
+}

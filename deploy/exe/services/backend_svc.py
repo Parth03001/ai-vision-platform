@@ -22,6 +22,7 @@ def configure_env(base_dir: Path, db_user: str, db_password: str, db_name: str,
 
     os.environ["UPLOAD_DIR"] = str(base_dir / "data" / "uploads")
     os.environ["MODEL_DIR"] = str(base_dir / "data" / "models")
+    os.environ["YOLO_WEIGHTS_DIR"] = str(base_dir / "data" / "yolo_weights")
 
     # Signal to main.py that we are running in EXE mode (serve frontend)
     os.environ["EXE_MODE"] = "true"
@@ -37,6 +38,7 @@ def configure_env(base_dir: Path, db_user: str, db_password: str, db_name: str,
 
     (base_dir / "data" / "uploads").mkdir(parents=True, exist_ok=True)
     (base_dir / "data" / "models").mkdir(parents=True, exist_ok=True)
+    (base_dir / "data" / "yolo_weights").mkdir(parents=True, exist_ok=True)
     (base_dir / "logs").mkdir(parents=True, exist_ok=True)
 
 

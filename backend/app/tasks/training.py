@@ -15,6 +15,18 @@ import cv2
 import numpy as np
 
 
+def _resolve_model_path(model_name: str) -> str:
+    """
+    Return the full path to a pre-downloaded YOLO base weight if it exists in
+    yolo_weights_dir, otherwise fall back to *model_name* so ultralytics can
+    attempt an online download (useful in dev environments with internet).
+    """
+    preloaded = settings.yolo_weights_dir / model_name
+    if preloaded.exists() and preloaded.stat().st_size > 1024 * 1024:
+        return str(preloaded)
+    return model_name
+
+
 def _safe_float(v):
     """Convert a numeric value to a JSON-safe float (None for NaN/Inf)."""
     try:
@@ -441,7 +453,7 @@ def train_seed_model(
     epoch_history  = []
     epoch_start_times = []
 
-    model = YOLO(model_name)
+    model = YOLO(_resolve_model_path(model_name))
     model.add_callback(
         "on_fit_epoch_end",
         _make_epoch_callback(self, total_epochs, epoch_history, epoch_start_times),
@@ -565,7 +577,7 @@ def train_main_model(
             return {"error": "Seed model not found — train seed model first, or disable 'Use seed weights'."}
         pretrained = str(seed_path)
     else:
-        pretrained = model_name
+        pretrained = _resolve_model_path(model_name)
 
     anns_by_image = _group_annotations(ann_rows)
 

@@ -198,6 +198,8 @@ const MainTrainingPanel = ({ project, onClose }) => {
     const [preprocess, setPreprocess]           = useState(true);
     const [clahePreview, setClahePreview]       = useState(null);
     const [previewLoading, setPreviewLoading]   = useState(false);
+    // weights availability: { "yolov8n.pt": { available: true, size_mb: 6.1 }, ... }
+    const [weightsAvail, setWeightsAvail]       = useState({});
 
     const logsEndRef = useRef(null);
     const pollRef    = useRef({});
@@ -318,6 +320,19 @@ const MainTrainingPanel = ({ project, onClose }) => {
         return () => { Object.values(polls).forEach(clearInterval); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loadData, loadPersistedJobs]);
+
+    // ── Weights availability (one-shot on mount) ───────
+    useEffect(() => {
+        axios.get(`${API_URL}/pipeline/available-models`)
+            .then(res => {
+                const map = {};
+                (res.data.models || []).forEach(m => {
+                    map[m.value] = { available: m.available, size_mb: m.size_mb };
+                });
+                setWeightsAvail(map);
+            })
+            .catch(() => {});
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // auto-scroll log
     useEffect(() => {
@@ -653,14 +668,42 @@ const MainTrainingPanel = ({ project, onClose }) => {
                                     >
                                         {YOLO_MODEL_GROUPS.map(group => (
                                             <optgroup key={group.family} label={`${group.family}${group.note ? ` (${group.note})` : ''}`}>
-                                                {group.models.map(m => (
-                                                    <option key={m.value} value={m.value}>
-                                                        {m.label}  [{m.params}]
-                                                    </option>
-                                                ))}
+                                                {group.models.map(m => {
+                                                    const w = weightsAvail[m.value];
+                                                    const tick = w?.available ? '✓ ' : (Object.keys(weightsAvail).length > 0 ? '⬇ ' : '');
+                                                    const sz = w?.available && w.size_mb ? ` · ${w.size_mb}MB` : '';
+                                                    return (
+                                                        <option key={m.value} value={m.value}>
+                                                            {tick}{m.label}  [{m.params}]{sz}
+                                                        </option>
+                                                    );
+                                                })}
                                             </optgroup>
                                         ))}
                                     </select>
+                                    {/* ── Weights status strip ── */}
+                                    {Object.keys(weightsAvail).length > 0 && (() => {
+                                        const sel = weightsAvail[selectedModel];
+                                        const nOk = Object.values(weightsAvail).filter(v => v.available).length;
+                                        const nTotal = Object.keys(weightsAvail).length;
+                                        const allOk = nOk === nTotal;
+                                        return (
+                                            <div className={`mtp-weights-strip ${allOk ? 'mtp-weights-strip--ok' : 'mtp-weights-strip--partial'}`}>
+                                                <span className="mtp-weights-dot">{allOk ? '●' : '◐'}</span>
+                                                <span className="mtp-weights-summary">
+                                                    {nOk}/{nTotal} weights pre-loaded
+                                                </span>
+                                                {sel && !sel.available && (
+                                                    <span className="mtp-weights-warn">
+                                                        — selected model needs internet on first run
+                                                    </span>
+                                                )}
+                                                {sel?.available && (
+                                                    <span className="mtp-weights-ok">— offline ready</span>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
 
                                 {/* Fine-tune from seed toggle */}

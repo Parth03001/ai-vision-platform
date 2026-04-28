@@ -71,13 +71,66 @@ YOLO_MODELS = [
 
 @router.get("/available-models")
 async def get_available_models():
-    """Return the list of supported YOLO model weights for the UI dropdowns."""
+    """Return the list of supported YOLO model weights for the UI dropdowns.
+
+    Each model entry now includes `available` (True when the weight is
+    pre-downloaded and offline-ready) and `size_mb` (file size in MB or None).
+    """
+    weights_dir = settings.yolo_weights_dir
     families: dict = {}
+    models_out = []
     for m in YOLO_MODELS:
+        path = weights_dir / m["value"]
+        available = path.exists() and path.stat().st_size > 1024 * 1024
+        entry = {
+            **m,
+            "available": available,
+            "size_mb": round(path.stat().st_size / 1_048_576, 1) if available else None,
+        }
+        models_out.append(entry)
         families.setdefault(m["family"], []).append(
-            {"value": m["value"], "label": m["label"]}
+            {"value": m["value"], "label": m["label"],
+             "available": available, "size_mb": entry["size_mb"]}
         )
-    return {"models": YOLO_MODELS, "families": families}
+    return {"models": models_out, "families": families}
+
+
+@router.get("/weights-status")
+async def get_weights_status(
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Report which YOLO base weights are pre-downloaded and offline-ready.
+
+    Returns a per-model breakdown plus a summary so the frontend can show
+    a simple indicator (all green / some missing / none pre-loaded).
+    """
+    weights_dir = settings.yolo_weights_dir
+    models_out = []
+    total_size_mb = 0.0
+
+    for m in YOLO_MODELS:
+        path = weights_dir / m["value"]
+        available = path.exists() and path.stat().st_size > 1024 * 1024
+        size_mb = round(path.stat().st_size / 1_048_576, 1) if available else None
+        if size_mb:
+            total_size_mb += size_mb
+        models_out.append({
+            **m,
+            "available": available,
+            "size_mb": size_mb,
+            "path": str(path) if available else None,
+        })
+
+    n_available = sum(1 for m in models_out if m["available"])
+    return {
+        "weights_dir": str(weights_dir),
+        "total_models": len(YOLO_MODELS),
+        "available_count": n_available,
+        "total_size_mb": round(total_size_mb, 1),
+        "offline_ready": n_available == len(YOLO_MODELS),
+        "models": models_out,
+    }
 
 
 # ── Training ──────────────────────────────────────────────────────
